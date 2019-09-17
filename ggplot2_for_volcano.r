@@ -17,3 +17,14 @@ ggplot(New_table_43vsLAC_4,aes(logFC,-log10(PValue)))+geom_point(aes(color=color
   geom_vline(xintercept=range(-1,1),color="yellow",linetype="solid")
 ##save the pic
 ggsave("43_vs_LAC_4_valcono.png",with=5,height=5)
+
+##更新版，同时修改图例显示内容
+#lrt_bcv_0.2_table_new_new <- within(lrt_bcv_0.2_table_new,{
+# color_new <- NA
+# color_new[logFC > 1 & PValue < 0.05 ] <- "logFC>1&PValue<0.05"
+# color_new[logFC < -1 & PValue < 0.05 ] <- "logFC<-1&PValue<0.05"
+# color_new[logFC > -1 & logFC < 1 ] <- "-1<logFC<1"
+# color_new[PValue > 0.05 ]<- "PValue>0.05"
+# })
+#colours <- c("-1<logFC<1"="black","logFC<-1&PValue<0.05"="green","PValue>0.05"="grey","logFC>1&PValue<0.05"="red")
+#ggplot(lrt_bcv_0.2_table_new_new,aes(logFC,-log10(PValue)))+geom_point(aes(color=color_new))+scale_color_manual(values=colours)
