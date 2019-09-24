@@ -1,8 +1,26 @@
+##trimmomatic
+#trimmomatic PE -summary kp_21_trimmed.log kp_21_R1.fastq.gz kp_21_R2.fastq.gz -baseout kp_21_trimmed.fastq.gz \
+#ILLUMINACLIP:Sabgon_adapter.fa:2:30:10 LEADING:20 TRAILING:20 SLIDINGWINDOW:5:20 MINLEN:35 
+##sangon_adapter.fa
+##>PrefixPE/1
+##AGATCGGAAGAGCACACGTCTGAAC
+##>PrefixPE/2
+##AGATCGGAAGAGCGTCGTGTAGGGA
+
 ##align with Rsubread
-#align(index="HS11286_index",readfile1 = "./kp_21_sangon_1P.fastq.gz",readfile2 = "./kp_21_sango    n_2P.fastq.gz",
-#      output_file = "kp_21_sangon_align.bam",type="rna")
-#align(index="HS11286_index",readfile1 = "./kp_28_sangon_1P.fastq.gz",readfile2 = "./kp_28_sango    n_2P.fastq.gz",
-#      output_file = "kp_28_sangon_align.bam",type="rna")
+library(Rsubread)
+#buildindex(basename="HS11286_index",reference="GCF_000240185.1_ASM24018v2_genomic.fna")
+align(index="HS11286_index",readfile1 = "./kp_21_trimmed.se_1P.fastq.gz",
+      readfile2 = "./kp_21_trimmed.se_2P.fastq.gz",minFragLength=35,
+      output_file = "kp_21_align.bam",type="rna")
+align(index="HS11286_index",readfile1 = "./kp_28_trimmed.se_1P.fastq.gz",
+      readfile2 = "./kp_28_trimmed.se_2P.fastq.gz",minFragLength=35,
+      output_file = "kp_28_align.bam",type="rna")
+repair("kp_21_align.bam",inFormat="BAM",outFiles="kp_21_align_repair.bam",
+       addDummy=T,compress=T,nthreads=2)
+repair("kp_28_align.bam",inFormat="BAM",outFiles="kp_28_align_repair.bam",
+       addDummy=T,compress=T,nthreads=2)
+
 ##featureCounts
 #kp_sangon_21_exp <- featureCounts("kp_21_sangon_align.bam",annot.ext = "HS11286.gtf",
 #                                  isGTFAnnotationFile = T,GTF.featureType = "transcript",
@@ -14,19 +32,21 @@
 #                                  requireBothEndsMapped=T,nthreads=2,countChimericFragments=F)
 
 ###align bowtie2 with shell scripts
-##bowtie2-build GCF_000240185.1_ASM24018v2_genomic.fna hs11286_index
-##bowtie2 -x hs11286_index -1 kp_21_sangon_1P.fastq.gz -2 kp_21_sangon_2P.fastq.gz -S kp_21_sangon_mapped.sam
-##bowtie2 -x hs11286_index -1 kp_28_sangon_1P.fastq.gz -2 kp_28_sangon_2P.fastq.gz -S kp_28_sangon_mapped.sam
-##samtools view -bS kp_21_sangon_mapped.sam > kp_21_sangon_mapped.bam
-##samtools view -bS kp_28_sangon_mapped.sam > kp_28_sangon_mapped.bam
+#bowtie2-build GCF_000240185.1_ASM24018v2_genomic.fna hs11286_index
+#bowtie2 -x hs11286_index -1 kp_21_sangon_1P.fastq.gz -2 kp_21_sangon_2P.fastq.gz -S kp_21_sangon_mapped.sam
+#bowtie2 -x hs11286_index -1 kp_28_sangon_1P.fastq.gz -2 kp_28_sangon_2P.fastq.gz -S kp_28_sangon_mapped.sam
+#samtools view -bS kp_21_sangon_mapped.sam > kp_21_sangon_mapped.bam
+#samtools view -bS kp_28_sangon_mapped.sam > kp_28_sangon_mapped.bam
+#samtools sort kp_21_sangon_mapped.bam -o kp_21_sangon_mapped_sorted.bam
+#samtools sort kp_28_sangon_mapped.bam -o kp_28_sangon_mapped_sorted.bam
 
 ####featureCounts ignoreDup=T
 ##featureCounts
-kp_sangon_21_exp <- featureCounts("kp_21_sangon_mapped.bam",annot.ext = "HS11286.gtf",
+kp_sangon_21_exp <- featureCounts("kp_21_align_repair.bam",annot.ext = "HS11286.gtf",
                                   isGTFAnnotationFile = T,GTF.featureType = "transcript",
                                   GTF.attrType = "Name",isPairedEnd = T,ignoreDup=T,
                                   requireBothEndsMapped=T,nthreads=2,countChimericFragments=F)
-kp_sangon_28_exp <- featureCounts("kp_28_sangon_mapped.bam",annot.ext = "HS11286.gtf",
+kp_sangon_28_exp <- featureCounts("kp_28_align_repair.bam",annot.ext = "HS11286.gtf",
                                   isGTFAnnotationFile = T,GTF.featureType = "transcript",
                                   GTF.attrType = "Name",isPairedEnd = T,ignoreDup=T,
                                   requireBothEndsMapped=T,nthreads=2,countChimericFragments=F)
@@ -44,8 +64,8 @@ fc_sangon_28 <- data.frame(Gene_ID=rownames(kp_sangon_28_exp$counts),Pos=paste0(
 ##prepare edgeR input
 cts <- data.frame(kp_21=fc_sangon_21$Count,kp_28=fc_sangon_28[rownames(fc_sangon_21),]$Count,
                   row.names=rownames(fc_sangon_21))
-normMat <- data.frame(kp_21=fc_sangon_21$Length,kp_28=fc_sangon_28[rownames(fc_sangon_21),]$Length,
-                      row.names=rownames(fc_sangon_21))
+#normMat <- data.frame(kp_21=fc_sangon_21$Length,kp_28=fc_sangon_28[rownames(fc_sangon_21),]$Length,
+#                      row.names=rownames(fc_sangon_21))
 
 ##edgeR
 library(edgeR)
@@ -66,15 +86,15 @@ cpm_sangon <- data.frame(cpm(y))
 fc_sangon_21$CPM <- cpm_sangon[rownames(fc_sangon_21),]$kp_21
 fc_sangon_28$CPM <- cpm_sangon[rownames(fc_sangon_28),]$kp_28
 #length
-rpkm_sangon <- data.frame(rpkm(y,gene.length =
-  c(fc_sangon_21[rownames(y$counts),]$Length,
-    fc_sangon_28[rownames(y$counts),]$Length)))
-fc_sangon_21$RPKM <- rpkm_sangon[rownames(fc_sangon_21),]$kp_21
-fc_sangon_28$PRKM <- rpkm_sangon[rownames(fc_sangon_28),]$kp_28
-fc_sangon_21$TPM <- ((fc_sangon_21$Count/fc_sangon_21$Length)*1000000)/
-  (sum(fc_sangon_21$Count/fc_sangon_21$Length))
-fc_sangon_28$TPM <- ((fc_sangon_28$Count/fc_sangon_28$Length)*1000000)/
-  (sum(fc_sangon_28$Count/fc_sangon_28$Length))
+#rpkm_sangon <- data.frame(rpkm(y,gene.length =
+#  c(fc_sangon_21[rownames(y$counts),]$Length,
+#    fc_sangon_28[rownames(y$counts),]$Length)))
+#fc_sangon_21$RPKM <- rpkm_sangon[rownames(fc_sangon_21),]$kp_21
+#fc_sangon_28$PRKM <- rpkm_sangon[rownames(fc_sangon_28),]$kp_28
+#fc_sangon_21$TPM <- ((fc_sangon_21$Count/fc_sangon_21$Length)*1000000)/
+#  (sum(fc_sangon_21$Count/fc_sangon_21$Length))
+#fc_sangon_28$TPM <- ((fc_sangon_28$Count/fc_sangon_28$Length)*1000000)/
+#  (sum(fc_sangon_28$Count/fc_sangon_28$Length))
 
 fc_sangon_21$Norm.Count <- fc_sangon_21$Count/y$samples$norm.factors[1]
 fc_sangon_28$Norm.Count <- fc_sangon_28$Count/y$samples$norm.factors[2]
@@ -110,7 +130,7 @@ DE_28vs21_l <- kp_score[kp_score$log2.Fold_change. < -1 &
 ##                          sep="\t",header=F,row.names = 1)
 ##DE_28vs21_l <- read.table(file="/Data_analysis/RNA_analysis/K.p_analysis/sangon_analysis_results/result/7_DEA/DEG/down_1",
 ##                          sep="\t",header=F,row.names = 1)
-###
+######
 
 library(topGO)
 geneID2GO <- readMappings("KPHS_Genbank_Go.txt")
@@ -124,13 +144,13 @@ for(i in 1:length(go_type)){
   type=go_type[i]
   godata <- new("topGOdata",ontology=type,allGenes=geneList_28vs21_h,
                 description=paste("GOdata_28vs21_h",type,sep="\t"),annot=annFUN.gene2GO,
-                gene2GO=geneID2GO,nodeSize=5)
+                gene2GO=geneID2GO,nodeSize=2)
   ##renew the GOdata
   .geneList_28vs21_h <- as.factor(as.integer(genes(godata) %in% sigGenes(godata)))
   names(.geneList_28vs21_h) <- genes(godata)
   godata <- new("topGOdata", ontology=type,allGenes=.geneList_28vs21_h,
                 description=paste("GOdata_28vs21_h",type,sep="\t"),annot=annFUN.gene2GO,
-                gene2GO=geneID2GO,nodeSize=5)
+                gene2GO=geneID2GO,nodeSize=2)
   kp_28vs21_h_go[[i]] <- godata
 }
 
@@ -147,7 +167,7 @@ for(i in 1:length(kp_28vs21_h_go)){
   }
   kp_28vs21_h_go_results_gentable[[i]] <- GenTable(godata,classic=tmp[[1]],weight01=tmp[[2]],
                                                    elim=tmp[[3]],orderBy="classic",ranksOf="classic",
-                                                   topNodes=20)
+                                                   topNodes=30)
   kp_28vs21_h_go_results[[i]] <- tmp
 }
 
@@ -160,13 +180,13 @@ for(i in 1:length(go_type)){
   type=go_type[i]
   godata <- new("topGOdata",ontology=type,allGenes=geneList_28vs21_l,
                 description=paste("GOdata_28vs21_h",type,sep="\t"),annot=annFUN.gene2GO,
-                gene2GO=geneID2GO,nodeSize=5)
+                gene2GO=geneID2GO,nodeSize=2)
   ##renew the genelist
   .geneList_28vs21_l <- as.factor(as.integer(genes(godata) %in% sigGenes(godata)))
   names(.geneList_28vs21_l) <- genes(godata)
   godata <- new("topGOdata",ontology=type,allGenes=.geneList_28vs21_l,
                 description=paste("GOdata_28vs21_h",type,sep="\t"),annot=annFUN.gene2GO,
-                gene2GO=geneID2GO,nodeSize=5)
+                gene2GO=geneID2GO,nodeSize=2)
   kp_28vs21_l_go[[i]] <- godata
 }
 kp_28vs21_l_go_results <- list()
@@ -181,7 +201,7 @@ for(i in 1:length(kp_28vs21_l_go)){
   }
   kp_28vs21_l_go_results_gentable[[i]] <- GenTable(godata,classic=tmp[[1]],weight01=tmp[[2]],
                                                    elim=tmp[[3]],orderBy="classic",ranksOf="classic",
-                                                   topNodes=20)
+                                                   topNodes=30)
   kp_28vs21_l_go_results[[i]] <- tmp
 }
 
