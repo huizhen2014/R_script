@@ -126,108 +126,112 @@ DE_28vs21_h <- kp_score[kp_score$log2.Fold_change. > 1 &
 DE_28vs21_l <- kp_score[kp_score$log2.Fold_change. < -1 &
                           kp_score$Signature.q.value.Benjamini.et.al..1995....0.05.=="TRUE",]
 
+###Part 3
 ##topGO enrichment
 library(topGO)
 geneID2GO <- readMappings("HS11286_sangon_go.txt")
-##28 vs 21 high
-geneList_28vs21_h <- as.factor(as.integer(rownames(cts) %in%
+geneList_up <- as.factor(as.integer(rownames(cts) %in%
                                              DE_28vs21_h$GeneNames))
-names(geneList_28vs21_h) <- rownames(cts)
+names(geneList_up) <- rownames(cts)
+geneList_down <- as.factor(as.integer(rownames(cts) %in% 
+                                        DE_28vs21_l$GeneNames))
+names(geneList_down) <- rownames(cts)  
 go_type <- c("MF","BP","CC")
-kp_28vs21_h_go <- list()
+
+##28 vs 21 high 构建富集GOdata数据
+up_go <- list()
 for(i in 1:length(go_type)){
   type=go_type[i]
-  godata <- new("topGOdata",ontology=type,allGenes=geneList_28vs21_h,
-                description=paste("GOdata_28vs21_h",type,sep="\t"),annot=annFUN.gene2GO,
+  godata <- new("topGOdata",ontology=type,allGenes=geneList_up,
+                description=paste("GOdata_up",type,sep="\t"),annot=annFUN.gene2GO,
                 gene2GO=geneID2GO,nodeSize=1)
   ##renew the GOdata
-  .geneList_28vs21_h <- as.factor(as.integer(genes(godata) %in% sigGenes(godata)))
-  names(.geneList_28vs21_h) <- genes(godata)
-  godata <- new("topGOdata", ontology=type,allGenes=.geneList_28vs21_h,
-                description=paste("GOdata_28vs21_h",type,sep="\t"),annot=annFUN.gene2GO,
+  .geneList_up <- as.factor(as.integer(genes(godata) %in% sigGenes(godata)))
+  names(.geneList_up) <- genes(godata)
+  godata <- new("topGOdata", ontology=type,allGenes=.geneList_up,
+                description=paste("GOdata_up",type,sep="\t"),annot=annFUN.gene2GO,
                 gene2GO=geneID2GO,nodeSize=1)
-  kp_28vs21_h_go[[i]] <- godata
+  up_go[[i]] <- godata
 }
 
-#statistic <- c("classic","weight01","elim")
-kp_28vs21_h_go_results <- list()
-kp_28vs21_h_go_results_table <- list()
-kp_28vs21_h_go_results_gentable <- list()
-for(i in 1:length(kp_28vs21_h_go)){
-  godata <- kp_28vs21_h_go[[i]]
+#statistic <- c("classic","weight01","elim"), 富集检测
+up_go_results <- list()
+up_go_results_table <- list()
+up_go_results_gentable <- list()
+for(i in 1:length(up_go)){
+  godata <- up_go[[i]]
   for(j in 1:length(statistic)){
     result <- runTest(godata,algorithm = "classic",statistic = "fisher")
   }
-  kp_28vs21_h_go_results_gentable[[i]] <- GenTable(godata,classic=result,orderBy="classic",ranksOf="classic",
+  up_go_results_gentable[[i]] <- GenTable(godata,classic=result,orderBy="classic",ranksOf="classic",
                                                    topNodes=length(usedGO(godata)),numChar=50)
-  kp_28vs21_h_go_results_gentable[[i]]$qvalue <- p.adjust(sort(score(result)),"BH")
-  kp_28vs21_h_go_results_gentable[[i]] <- kp_28vs21_h_go_results_gentable[[i]][order(kp_28vs21_h_go_results_gentable[[i]]$qvalue),]
-  kp_28vs21_h_go_results_table[[i]] <- kp_28vs21_h_go_results_gentable[[i]][1:30,]
-  kp_28vs21_h_go_results_gentable[[i]]$Term <- Definition(kp_28vs21_h_go_results_gentable[[i]]$GO.ID)
+  up_go_results_gentable[[i]]$qvalue <- p.adjust(sort(score(result)),"BH")
+  up_go_results_gentable[[i]] <- up_go_results_gentable[[i]][order(up_go_results_gentable[[i]]$qvalue),]
+  up_go_results_table[[i]] <- up_go_results_gentable[[i]][1:30,]
+  up_go_results_gentable[[i]]$Term <- Definition(up_go_results_gentable[[i]]$GO.ID)
   
-  kp_28vs21_h_go_results_gentable[[i]]$Sig_Genes <- sapply(
-    sapply(genesInTerm(godata,kp_28vs21_h_go_results_gentable[[i]]$GO.ID),function(x){
+  up_go_results_gentable[[i]]$Sig_Genes <- sapply(
+    sapply(genesInTerm(godata,up_go_results_gentable[[i]]$GO.ID),function(x){
       sigGenes(godata)[sigGenes(godata) %in% x]
     }),function(y){paste(y,collapse = ",")})
   
-  kp_28vs21_h_go_results_gentable[[i]]$All_Genes <- sapply(
-    genesInTerm(godata,kp_28vs21_h_go_results_gentable[[i]]$GO.ID),
+  up_go_results_gentable[[i]]$All_Genes <- sapply(
+    genesInTerm(godata,up_go_results_gentable[[i]]$GO.ID),
     function(x){paste(x,collapse = ",")})
   
-  kp_28vs21_h_go_results[[i]] <- result
+  up_go_results[[i]] <- result
 }
 
-##28 vs 21 low
-geneList_28vs21_l <- as.factor(as.integer(rownames(cts) %in% 
-                                            DE_28vs21_l$GeneNames))
-names(geneList_28vs21_l) <- rownames(cts)  
-kp_28vs21_l_go <- list()
+##28 vs 21 down 构建GOdata数据
+down_go <- list()
 for(i in 1:length(go_type)){
   type=go_type[i]
-  godata <- new("topGOdata",ontology=type,allGenes=geneList_28vs21_l,
+  godata <- new("topGOdata",ontology=type,allGenes=geneList_down,
                 description=paste("GOdata_28vs21_l",type,sep="\t"),annot=annFUN.gene2GO,
                 gene2GO=geneID2GO,nodeSize=1)
   ##renew the genelist
-  .geneList_28vs21_l <- as.factor(as.integer(genes(godata) %in% sigGenes(godata)))
-  names(.geneList_28vs21_l) <- genes(godata)
-  godata <- new("topGOdata",ontology=type,allGenes=.geneList_28vs21_l,
-                description=paste("GOdata_28vs21_l",type,sep="\t"),annot=annFUN.gene2GO,
+  .geneList_down <- as.factor(as.integer(genes(godata) %in% sigGenes(godata)))
+  names(.geneList_down) <- genes(godata)
+  godata <- new("topGOdata",ontology=type,allGenes=.geneList_down,
+                description=paste("GOdata_down",type,sep="\t"),annot=annFUN.gene2GO,
                 gene2GO=geneID2GO,nodeSize=1)
-  kp_28vs21_l_go[[i]] <- godata
+  down_go[[i]] <- godata
 }
 
-kp_28vs21_l_go_results <- list()
-kp_28vs21_l_go_results_table <- list()
-kp_28vs21_l_go_results_gentable <- list()                
-for(i in 1:length(kp_28vs21_l_go)){
-  godata <- kp_28vs21_l_go[[i]]
+down_go_results <- list()
+down_go_results_table <- list()
+down_go_results_gentable <- list()                
+for(i in 1:length(down_go)){
+  godata <- down_go[[i]]
   for(j in 1:length(statistic)){
     result <- runTest(godata,algorithm = "classic",statistic = "fisher")
     }
-  kp_28vs21_l_go_results_gentable[[i]] <- GenTable(godata,classic=result,orderBy="classic",ranksOf="classic",
+  down_go_results_gentable[[i]] <- GenTable(godata,classic=result,orderBy="classic",ranksOf="classic",
                                                    topNodes=length(usedGO(godata)),numChar=50)
-  kp_28vs21_l_go_results_gentable[[i]]$qvalue <- p.adjust(sort(score(result)),"BH")
-  kp_28vs21_l_go_results_gentable[[i]] <- kp_28vs21_l_go_results_gentable[[i]][order(kp_28vs21_h_go_results_gentable[[i]]$qvalue),]
-  kp_28vs21_l_go_results_table[[i]] <- kp_28vs21_l_go_results_gentable[[i]][1:30,]
-  kp_28vs21_l_go_results_gentable[[i]]$Term <- Definition(kp_28vs21_l_go_results_gentable[[i]]$GO.ID)
+  down_go_results_gentable[[i]]$qvalue <- p.adjust(sort(score(result)),"BH")
+  down_go_results_gentable[[i]] <- down_go_results_gentable[[i]][order(down_go_results_gentable[[i]]$qvalue),]
+  down_go_results_table[[i]] <- down_go_results_gentable[[i]][1:30,]
+  down_go_results_gentable[[i]]$Term <- Definition(down_go_results_gentable[[i]]$GO.ID)
   
-  kp_28vs21_l_go_results_gentable[[i]]$Sig_Genes <- sapply(
-    sapply(genesInTerm(godata,kp_28vs21_l_go_results_gentable[[i]]$GO.ID),function(x){
+  down_go_results_gentable[[i]]$Sig_Genes <- sapply(
+    sapply(genesInTerm(godata,down_go_results_gentable[[i]]$GO.ID),function(x){
       sigGenes(godata)[sigGenes(godata) %in% x]
       }),function(y){paste(y,collapse = ",")})
     
-  kp_28vs21_l_go_results_gentable[[i]]$All_Genes <- sapply(
-    genesInTerm(godata,kp_28vs21_l_go_results_gentable[[i]]$GO.ID),
+  down_go_results_gentable[[i]]$All_Genes <- sapply(
+    genesInTerm(godata,down_go_results_gentable[[i]]$GO.ID),
     function(x){paste(x,collapse = ",")})
 
-  kp_28vs21_l_go_results[[i]] <- result
+  down_go_results[[i]] <- result
 }
 
 ##绘制GO 富集散点图,ggsave根据后缀判断类型(device)
 library(ggplot2)
+##创建富集结果输出目录
 dir.create("./GO_enrichment_results")
 for(i in 1:3){
-  tmp=kp_28vs21_h_go_results_table[[i]]
+  tmp=up_go_results_table[[i]]
+  ##命名图片名称
   name=paste0("Kp_28vs21_Up","_",go_type[i],"_","Enrichment_Map")
   tmp$Annot_comb <- paste(tmp$GO.ID,tmp$Term,sep=" : ")
   tmp$qvalue <- as.numeric(tmp$qvalue)
@@ -238,15 +242,15 @@ for(i in 1:3){
     labs(color="Classic Fisher Qvalue",size="Significant Count",x="Classic Fisher Qvalue",
          y="GO Terms",title=name)+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
   ggsave(paste0("./GO_enrichment_results/",name,".pdf"),plot=p,width=25,height=15,units = "cm")
-  printGraph(kp_28vs21_h_go[[i]],kp_28vs21_h_go_results[[i]],
-                 firstSigNodes = 10,useInfo = "all",
+  printGraph(up_go[[i]],up_go_results[[i]],
+                 firstSigNodes = 10,useInfo = "all",pdfSW=F,
                  fn.prefix=paste0("./GO_enrichment_results/",name,"DAG"))
-  write.table(kp_28vs21_h_go_results_gentable[[i]],file=paste0(
+  write.table(up_go_results_gentable[[i]],file=paste0(
     "./GO_enrichment_results/",name,".xls"),sep="\t",quote=F,row.names = F)
 } 
 
 for(i in 1:3){
-  tmp=kp_28vs21_l_go_results_table[[i]]
+  tmp=down_go_results_table[[i]]
   name=paste0("Kp_28vs21_Down","_",go_type[i],"_","Enrichment_Map")
   tmp$Annot_comb <- paste(tmp$GO.ID,tmp$Term,sep=" : ")
   tmp$qvalue <- as.numeric(tmp$qvalue)
@@ -257,10 +261,10 @@ for(i in 1:3){
     labs(color="Classic Fisher Qvalue",size="Significant Count",x="Classic Fisher Qvalue",
          y="GO Terms",title=name)+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
   ggsave(paste0("./GO_enrichment_results/",name,".pdf"),plot=p,width=25,height=15,units = "cm")
-  printGraph(kp_28vs21_l_go[[i]],kp_28vs21_l_go_results[[i]],
-             firstSigNodes = 10,useInfo = "all",
+  printGraph(down_go[[i]],down_go_results[[i]],
+             firstSigNodes = 10,useInfo = "all",pdfSW=F,
              fn.prefix=paste0("./GO_enrichment_results/",name,"DAG"))
-  write.table(kp_28vs21_l_go_results_gentable[[i]],file=paste0(
+  write.table(down_go_results_gentable[[i]],file=paste0(
     "./GO_enrichment_results/",name,".xls"),sep="\t",quote=F,row.names = F)
 } 
 
