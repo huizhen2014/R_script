@@ -1,12 +1,18 @@
 ##for gwas significant points plot
-
-tmp8 <- read.csv("hypermortality_25_09_2019_1530.results.csv")
-selected_gwas_genes <- tmp8[is.na(as.integer(sapply(tmp8$Gene,function(x){grep("_",x)}))),][,c("Gene","Benjamini_H_p")]
+library(ggplot2)
+hyper_file  <- read.csv("hypermortality_25_09_2019_1530.results.csv")
+selected_gwas_genes <- hyper_file[is.na(as.integer(sapply(hyper_file$Gene,function(x){grep("_",x)}))),][,c("Gene","Benjamini_H_p")]
 selected_gwas_genes.bak <- selected_gwas_genes
-selected_gwas_genes$Gene <- factor(selected_gwas_genes$Gene,levels=as.vector(selected_gwas_genes$Gene))
+selected_gwas_genes$Gene <- factor(selected_gwas_genes$Gene,levels=rev(selected_gwas_genes$Gene))
 
-ggplot(selected_gwas_genes,aes(Gene,-log10(Benjamini_H_p)))+geom_point(aes(color=-log10(Benjamini_H_p)))+
-  scale_color_gradient(low="green",high="red") + 
-  theme(axis.text.x=element_text(angle=90, vjust=0.5,size=4),plot.title=element_text(hjust=0.5))+
-  labs(x="Gene",y="-log10(qvalue)",color="-log10(qvalue)")+ggtitle("Plot")+theme_bw()
-
+#selected_gwas_genes$Italic_gene <- expression(paste(selected_gwas_genes$Gene,
+#                                                    italic('italics')))
+p <- ggplot(selected_gwas_genes,aes(-log10(Benjamini_H_p),Gene))+geom_point(aes(color=-log10(Benjamini_H_p)))+
+  scale_color_gradient(low="green",high="red") + theme_bw()+
+  theme(axis.text.y=element_text(size=6,hjust=0.5,face="italic"),
+        plot.margin=unit(c(0.5,5,0.5,5),"cm"),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15))+
+  labs(y="Gene",x=expression(-log[10](Qvalue)),color=expression(-log[10](Qvalue)))
+p 
+ggsave(p,file="hypermortality_ampR.pdf",width=9.5,height=7)

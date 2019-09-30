@@ -1,6 +1,9 @@
-##clusterprofiler results
-#test_mf <- clusterProfiler_result_mf
-##获取test_mf 中go term的children/parents go term，且要存在test_mf中
+##对于富集到的GO terms之间的基因重叠关系进行展示，
+##如果两个GO terms系的差异基因存在重叠，
+##说明这两个节点存在overlap关系，在图中用线条连接起来
+##每个节点是一个富集到的GO term, 默认画top30个富集到的GO terms, 
+##节点大小对应该GO terms下富集到的差异基因个数，
+##节点的颜色对应p.adjust的值，从小到大，对应蓝色到红色
 library(GO.db)
 library(igraph)
 links_mf <- data.frame()
