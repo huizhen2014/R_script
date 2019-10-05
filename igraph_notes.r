@@ -107,7 +107,7 @@ links2 <- as.matrix(links2)
 
 ##truning networks into igraph objects
 ##graph.data.frame/d/vertices
-##d z 指明network的edges，前两列为每个edge的：source IDs和
+##d 指明network的edges，前两列为每个edge的：source IDs和
 ##target mode IDs;随后的列为edge属性(weight,type,label...)
 ##vertices以一个node IDs为起点，随后列为node属性
 library(igraph)
@@ -306,7 +306,8 @@ plot(clp,net_mf)
 ##write.graph(g,file="my_graph.dl",format="pajek")
 ##write.graph(g,file='my_graph.txt',fromat="edgelist")
 
-
+##legned
+##
 
 
 
