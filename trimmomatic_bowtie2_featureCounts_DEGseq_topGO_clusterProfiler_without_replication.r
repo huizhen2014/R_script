@@ -291,6 +291,8 @@ down_igraph_results_table <- list()
 ##DE up
 for(i in 1:3){
   num <- 0
+  links <- data.frame()
+  vertices <- data.frame()
   vertices <- up_go_results_table[[i]][,c(1,2,4,7)]
   colnames(vertices) <- c("GO.ID","Term","Significant","qvalue")
   for(j in 1:(nrow(up_go_results_table[[i]])-1)){
@@ -311,6 +313,9 @@ for(i in 1:3){
 }
 ##draw up the netwroks
 for(n in 1:3){
+  tmp <- list()
+  vertices <- data.frame()
+  d <- data.frame()
   tmp <- up_igraph_results_table[[n]]
   vertices <- tmp[[1]]
   d <- tmp[[2]]
@@ -361,6 +366,9 @@ for(i in 1:3){
 
 ##draw down the netwroks
 for(n in 1:3){
+  tmp <- list()
+  vertices <- data.frame()
+  d <- data.frame()
   tmp <- down_igraph_results_table[[n]]
   vertices <- tmp[[1]]
   d <- tmp[[2]]
@@ -387,7 +395,9 @@ for(n in 1:3){
 
 ##up heatmap of GO terms with genes
 for(m in 1:3){
+  tmp <- data.frame()
   genes_up <- vector()
+  Data <- data.frame()
   tmp=up_go_results_table[[m]]
   for(i in 1:nrow(tmp)){
     genes_up <- append(genes_up, unlist(strsplit(tmp[i,]$Sig_Genes,",")))
@@ -405,6 +415,8 @@ for(m in 1:3){
   y1 <- vector()
   y2 <- vector()
   q <- vector()
+  d <- data.frame()
+  p <- NULL
   for(k in 1:nrow(Data)){
     for(n in 1:ncol(Data)){
       x1 <- append(x1,Data[k,n]*(n-0.45))
@@ -430,7 +442,9 @@ for(m in 1:3){
 
 ##down heatmap of GO terms with genes
 for(m in 1:3){
+  tmp <- data.frame()
   genes_down <- vector()
+  Data <- data.frame()
   tmp=down_go_results_table[[m]]
   for(i in 1:nrow(tmp)){
     genes_down <- append(genes_down, unlist(strsplit(tmp[i,]$Sig_Genes,",")))
@@ -448,6 +462,7 @@ for(m in 1:3){
   y1 <- vector()
   y2 <- vector()
   q <- vector()
+  p <- NULL
   for(k in 1:nrow(Data)){
     for(n in 1:ncol(Data)){
       x1 <- append(x1,Data[k,n]*(n-0.45))
