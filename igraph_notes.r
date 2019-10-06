@@ -307,7 +307,15 @@ plot(clp,net_mf)
 ##write.graph(g,file='my_graph.txt',fromat="edgelist")
 
 ##legned
-##
+##image.plot(legend.only = TRUE,zlim=range(rescale(-log10(vertices$qvalue))),
+library(fields)
+image.plot(legend.only = TRUE,zlim=range(rescale(-log10(vertices$qvalue))), ##将颜色范围均一到0，1
+           col=rbPal(100)[cut(seq(0,1,by=0.001),breaks=100)], ##设定颜色范围
+           horizontal = TRUE,legend.shrink=0.2,legend.width = 1,
+           legend.args=list(text="-log10(Qvalue)",cex=0.8,line=0.1), ##legend标签，大小，距离
+           axis.args=list(at=c(0,0.5,1),labels=c(0,0.5,1),cex=0.5,line=0.05), ##axis 位置，labels，距离
+           smallplot = c(0.8,0.9,0.85,0.9)) ## 未知，擦
+
 
 
 

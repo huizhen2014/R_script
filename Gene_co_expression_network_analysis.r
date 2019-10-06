@@ -49,17 +49,19 @@ datSummary <- datSummary[restVariance,]
 ##针对不同的soft thresoholds(powers) 构建scale free
 ##topology fitting indices, 用于挑选soft threshold
 powers1 <- c(seq(1,10,by=1),seq(12,20,by=2))
+RpowerTable <- pickSoftThreshold(datExpr,powerVector = powers1)[[2]]
 
 cex1=1
 par(mfrow=c(1,2))
 plot(RpowerTable[,1],-sign(RpowerTable[,3])*RpowerTable[,2],
-     xlab="Soft Threshold(power)", ylab="Scale Free Topology Model Fit, signed R^2")
+     xlab="Soft Threshold(power)", ylab="Scale Free Topology Model Fit, signed R^2",
+     type="n")
 text(RpowerTable[,1],-sign(RpowerTable[,3])*RpowerTable[,2],
                            labels=powers1,cex=cex1,col="red")
 #This line correspond to using an R^2 cutoff of h
 abline(h=0.85,col="red")
 plot(RpowerTable[,1],RpowerTable[,5],xlab="Soft Threshold(power)",
-     ylab="Mean Connectivity")
+     ylab="Mean Connectivity",type="n")
 text(RpowerTable[,1],RpowerTable[,5],labels=powers1,cex=cex1,col="red")
 
 ##at power=7, the 拟合曲线的R^2值出现拐点，也就是随着power的增加，
@@ -88,13 +90,15 @@ ConnectivityRank <- rank(-Connectivity)
 restConnectivity <- ConnectivityRank <= ConnectivityCut
 ##因此使用剩下基因检出模型
 sum(restConnectivity) #2001
-##限制相邻矩阵为最关联基因
+##限制相邻矩阵为最关联基因,前2001个基因
 ADJrest <- adjacency(datExpr[,restConnectivity],power=beta1)
 ##根据相邻矩阵，计算topological overlap matrix
-dissTOM <- TOMdist(ADJrest)
+dissTOM <- TOMdist(ADJrest) ##计算为1- TOMsimmilarity()
 
 ##现在是根据TOM matrix获得hierarchical clustering.
 ##clustering tree的分支用于定义基因模型
+##Hierarchical cluster analysis on a set of
+##dissimilarities and methods for analyzing it.
 hierTOM <- hclust(as.dist(dissTOM),method="average")
 par(mfrow=c(1,1))
 plot(hierTOM,labels=F,sub="",xlab="")

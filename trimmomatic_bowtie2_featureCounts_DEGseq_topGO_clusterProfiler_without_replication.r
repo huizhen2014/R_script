@@ -284,6 +284,7 @@ for(i in 1:3){
 
 ##绘制netwrok和heatmap图
 library(igraph)
+library(fields)
 library(reshape2)
 library(ggplot2)
 up_igraph_results_table <- list()
@@ -322,21 +323,27 @@ for(n in 1:3){
   net <- graph_from_data_frame(
     d=d,vertices=vertices,directed = F)
   rbPal <- colorRampPalette(c("yellow","red"))
-  V(net)$color <- rbPal(10)[as.numeric(cut(-log10(vertices$qvalue),breaks = 10))]
+  V(net)$color <- rbPal(100)[as.numeric(cut(rescale(-log10(vertices$qvalue)),breaks = 100))]
   V(net)$label <- vertices$Term
   V(net)$label.family <- "Times"
   V(net)$label.cex <- 0.6
   V(net)$label.dist <- 0.5
   E(net)$width <- d$count*0.15
   
-  pdf(paste0("./GO_enrichment_results/","28vs21_up_",go_type[n],"_star_network.pdf"))
-  plot(net,layout=layout_as_star,main=paste0(
-    "28vs21_up_",go_type[n],"_star_network"))
-  dev.off()
+  #pdf(paste0("./GO_enrichment_results/","28vs21_up_",go_type[n],"_star_network.pdf"))
+  #plot(net,layout=layout_as_star,main=paste0(
+  #  "28vs21_up_",go_type[n],"_star_network"))
+  #dev.off()
   
   pdf(paste0("./GO_enrichment_results/","28vs21_up_",go_type[n],"_network.pdf"))
   plot(net,main=paste0(
     "28vs21_up_",go_type[n],"_network"))
+  image.plot(legend.only = TRUE,zlim=range(rescale(-log10(vertices$qvalue))),
+             col=rbPal(100)[cut(seq(0,1,by=0.001),breaks=100)],
+             horizontal = TRUE,legend.shrink=0.2,legend.width = 1,
+             legend.args=list(text=expression(-log[10](Qvalue)),cex=0.7,line=0.1),
+             axis.args=list(at=c(0,0.5,1),labels=c(0,0.5,1),line=0.05),
+             smallplot = c(0.8,0.9,0.85,0.9))
   dev.off()
 }
 
@@ -375,21 +382,27 @@ for(n in 1:3){
   net <- graph_from_data_frame(
     d=d,vertices=vertices,directed = F)
   rbPal <- colorRampPalette(c("yellow","red"))
-  V(net)$color <- rbPal(10)[as.numeric(cut(-log10(vertices$qvalue),breaks = 10))]
+  V(net)$color <- rbPal(100)[as.numeric(cut(rescale(-log10(vertices$qvalue)),breaks = 100))]
   V(net)$label <- vertices$Term
   V(net)$label.family <- "Times"
   V(net)$label.cex <- 0.6
   V(net)$label.dist <- 0.5
   E(net)$width <- d$count*0.15
   
-  pdf(paste0("./GO_enrichment_results/","28vs21_down_",go_type[n],"_star_network.pdf"))
-  plot(net,layout=layout_as_star,main=paste0(
-    "28vs21_down_",go_type[n],"_star_network"))
-  dev.off()
+  #pdf(paste0("./GO_enrichment_results/","28vs21_down_",go_type[n],"_star_network.pdf"))
+  #plot(net,layout=layout_as_star,main=paste0(
+  #  "28vs21_down_",go_type[n],"_star_network"))
+  #dev.off()
   
   pdf(paste0("./GO_enrichment_results/","28vs21_down_",go_type[n],"_network.pdf"))
   plot(net,main=paste0(
     "28vs21_down_",go_type[n],"_network"))
+  image.plot(legend.only = TRUE,zlim=range(rescale(-log10(vertices$qvalue))),
+             col=rbPal(100)[cut(seq(0,1,by=0.001),breaks=100)],
+             horizontal = TRUE,legend.shrink=0.2,legend.width = 1,
+             legend.args=list(text=expression(-log[10](Qvalue)),cex=0.7,line=0.1),
+             axis.args=list(at=c(0,0.5,1),labels=c(0,0.5,1),line=0.05),
+             smallplot = c(0.8,0.9,0.85,0.9))
   dev.off()
 }
 
@@ -488,32 +501,102 @@ for(m in 1:3){
 
 ##part 4 
 ##clusterProfiler kegg analysis
+library(AnnotationDbi)
+library(AnnotationForge)
+library(AnnotationHub)
 library(clusterProfiler)
+library(enrichplot)
 ##kegg_database <- search_kegg_organism("Klebsiella pneumoniae",by="scientific_name",
 ##                                      ignore.case = T)
 ##kpm
-kegg_28vs21_m_h <- enrichMKEGG(gene=DE_28vs21_h$GeneNames,organism = "kpm",
-                            pvalueCutoff = 0.05)
-kegg_28vs21_m_l <- enrichMKEGG(gene=DE_28vs21_l$GeneNames,organism = "kpm",
-                             pvalueCutoff = 0.05)
-kegg_28vs21_h <- enrichKEGG(gene=DE_28vs21_h$GeneNames,organism = "kpm",
-                               pvalueCutoff = 0.05)
-kegg_28vs21_l <- enrichKEGG(gene=DE_28vs21_l$GeneNames,organism = "kpm",
-                               pvalueCutoff = 0.05)
+##KEGG Module是人工审核定义的功能单元，在一些情况下，KEGG Module具有明确直接的解释
+kegg_28vs21_up <- enrichMKEGG(gene=DE_28vs21_up$GeneNames,organism = "kpm",
+                            pvalueCutoff = 1,minGSSize= 1,qvalueCutoff = 1)
+kegg_28vs21_down <- enrichMKEGG(gene=DE_28vs21_down$GeneNames,organism = "kpm",
+                             pvalueCutoff = 1,minGSSize = 1,qvalueCutoff = 1)
 
-kp <- loadDb("/Users/carlos/.AnnotationHub/74476/org.Klebsiella_pneumoniae_subsp._pneumoniae_HS11286.eg.sqlite")
-DE_down_dataframe <- select(kp,keys=as.vector(DE_down),columns=c("ENTREZID","SYMBOL"),keytype="SYMBOL")
-ego_down_mf <- enrichGO(DE_down_dataframe$ENTREZID,OrgDb = kp,keyType = "ENTREZID",
-                        ont="MF",readable = T)
+##dotplot pic / 
+kegg_28vs21_up <- as.data.frame(kegg_28vs21_up)
+kegg_28vs21_down <- as.data.frame(kegg_28vs21_down)
+kegg_28vs21_up$Terms <- paste0(kegg_28vs21_up$ID,":",kegg_28vs21_up$Description)
+kegg_28vs21_down$Terms <- paste0(kegg_28vs21_down$ID,":",kegg_28vs21_down$Description)
+kegg_28vs21_results <- list(kegg_28vs21_up,kegg_28vs21_down)
+name_kegg <- c("KEGG_28vs21_Up","KEGG_28vs21_Down")
 
+for(i in 1:2){
+  tmp <- data.frame()
+  name <- c()
+  if(nrow(kegg_28vs21_results[[i]])>30){
+    tmp <- kegg_28vs21_results[[i]][1:30,]
+    }else{
+      tmp <- kegg_28vs21_results[[i]]
+    }
+  name <- name_kegg[i]
+  tmp$p.adjust <- as.numeric(tmp$p.adjust)
+  tmp$Count <- as.numeric(tmp$Count)
+  tmp$Terms <- factor(tmp$Terms,levels = rev(tmp$Terms))
+  p<- ggplot(tmp,aes(p.adjust,Terms))+geom_point(aes(size=Count,color=p.adjust))+
+    scale_color_gradient(low="red",high="green")+scale_x_reverse()+
+    labs(color="p.adjust",size="Significant Count",x="p.adjust",
+         y="KO Terms",title=paste0(name,"_Enrichment"))+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
+  ggsave(paste0("./GO_enrichment_results/",name,"_Enrichment",".pdf"),plot=p,width=25,height=15,units = "cm")
+} 
 
-
-
-
-
+##heatmap for kegg enrichment 
+for(m in 1:2){
+  tmp <- data.frame()
+  genes <- vector()
+  Data <- data.frame()
+  if(nrow(kegg_28vs21_results[[m]])>30){
+    tmp <- kegg_28vs21_results[[m]][1:30,]
+  }else{
+    tmp <- kegg_28vs21_results[[m]]
+  }
   
+  for(i in 1:nrow(tmp)){
+    genes <- append(genes, unlist(strsplit(tmp$geneID,"/")))
+  }
+  genes <- sort(unique(genes))
+  
+  Data <- data.frame(matrix(1:length(genes),nrow=1))
+  for(j in 1:nrow(tmp)){
+    Data[j,] <- as.integer(genes %in% unlist(strsplit(tmp[j,]$geneID,"/")))
+  }
+  colnames(Data) <- factor(genes,levels=genes)
+  rownames(Data) <- factor(tmp$ID,levels=rev(tmp$ID))
+  x1 <- vector()
+  x2 <- vector()
+  y1 <- vector()
+  y2 <- vector()
+  q <- vector()
+  p <- NULL
+  for(k in 1:nrow(Data)){
+    for(n in 1:ncol(Data)){
+      x1 <- append(x1,Data[k,n]*(n-0.45))
+      x2 <- append(x2,Data[k,n]*(n+0.45))
+      y1 <- append(y1, Data[k,n]*(k-0.45))
+      y2 <- append(y2, Data[k,n]*(k+0.45))
+    }
+    q <- append(q,rep(tmp[k,]$p.adjust,length(genes)))
+  }
+  d <- data.frame(x1=x1,x2=x2,y1=y1,y2=y2,q=q)
+  
+  p <- ggplot() + theme_bw()+ geom_rect(
+    data=d,mapping=aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,fill=q))+
+    scale_fill_gradient(low="red",high="blue")+
+    scale_y_continuous(breaks=seq(1,length(tmp$ID)),labels=tmp$ID,expand = c(0,0))+
+    scale_x_continuous(breaks=seq(1,length(genes)),labels=genes,expand = c(0,0))+
+    theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
+          plot.title=element_text(hjust = 0.5))+
+    labs(title=paste0(name_kegg[m],"_Heatmap"),y="KO Terms",x="DE Genes",fill="p.adjust")
+  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_heapmap.pdf"),
+         plot=p,width = 28,height=18,units = "cm") 
+}
 
-
-
-
-
+##browseKEGG
+##browseKEGG(kk, 'hsa04110')
+##library("pathview")
+#hsa04110 <- pathview(gene.data  = geneList,
+#                     pathway.id = "hsa04110",
+#                     species    = "hsa",
+#                     limit      = list(gene=max(abs(geneList)), cpd=1))
