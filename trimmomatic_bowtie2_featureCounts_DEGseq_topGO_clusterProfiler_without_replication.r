@@ -287,19 +287,21 @@ library(igraph)
 library(fields)
 library(reshape2)
 library(ggplot2)
+library(scales)
 up_igraph_results_table <- list()
 down_igraph_results_table <- list()
-##DE up
+
+##DE up, 仅选取前15个显著性富集GO terms绘制
 for(i in 1:3){
   num <- 0
   links <- data.frame()
   vertices <- data.frame()
-  vertices <- up_go_results_table[[i]][,c(1,2,4,7)]
+  vertices <- up_go_results_table[[i]][1:15,c(1,2,4,7)]  ##前15个
   colnames(vertices) <- c("GO.ID","Term","Significant","qvalue")
-  for(j in 1:(nrow(up_go_results_table[[i]])-1)){
+  for(j in 1:(nrow(up_go_results_table[[i]][1:15,])-1)){  ##前15个
     from <- up_go_results_table[[i]][j,]$GO.ID
     from_genes <- unlist( strsplit( up_go_results_table[[i]][j,]$Sig_Genes,","))
-    for(k in (j+1):nrow(up_go_results_table[[i]])){
+    for(k in (j+1):nrow(up_go_results_table[[i]][1:15,])){  ##前15个
       end <- up_go_results_table[[i]][k,]$GO.ID
       end_genes <- unlist( strsplit( up_go_results_table[[i]][k,]$Sig_Genes,","))
       from_end_num <- sum(from_genes %in% end_genes)
@@ -321,7 +323,7 @@ for(n in 1:3){
   vertices <- tmp[[1]]
   d <- tmp[[2]]
   net <- graph_from_data_frame(
-    d=d,vertices=vertices,directed = F)
+    d=d,vertices=vertices,directed = FALSE)
   rbPal <- colorRampPalette(c("yellow","red"))
   V(net)$color <- rbPal(100)[as.numeric(cut(rescale(-log10(vertices$qvalue)),breaks = 100))]
   V(net)$label <- vertices$Term
@@ -347,17 +349,17 @@ for(n in 1:3){
   dev.off()
 }
 
-##DE down    
+##DE down 同样绘制前15个GO terms
 for(i in 1:3){
   num <- 0
   vertices <- data.frame()
   links <- data.frame()
-  vertices <- down_go_results_table[[i]][,c(1,2,4,7)]
+  vertices <- down_go_results_table[[i]][1:15,c(1,2,4,7)]  ##前15个
   colnames(vertices) <- c("GO.ID","Term","Significant","qvalue")
-  for(j in 1:(nrow(down_go_results_table[[i]])-1)){
+  for(j in 1:(nrow(down_go_results_table[[i]][1:15,])-1)){  ##前15个
     from <- down_go_results_table[[i]][j,]$GO.ID
     from_genes <- unlist( strsplit( down_go_results_table[[i]][j,]$Sig_Genes,","))
-    for(k in (j+1):nrow(down_go_results_table[[i]])){
+    for(k in (j+1):nrow(down_go_results_table[[i]][1:15,])){  ##前15个
       end <- down_go_results_table[[i]][k,]$GO.ID
       end_genes <- unlist( strsplit( down_go_results_table[[i]][k,]$Sig_Genes,","))
       from_end_num <- sum(from_genes %in% end_genes)

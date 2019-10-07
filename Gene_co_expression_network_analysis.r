@@ -110,6 +110,8 @@ plot(hierTOM,labels=F,sub="",xlab="")
 ##函数cutreeSatticColor根据height cutoff对分支基因着色
 ##着灰色的基因表示不属于任何一个模型,我们仅考虑包含至少125个基因
 ##的模型
+##Module detection in hierarchical dendrograms using a constant-height tree cut.
+## Only branches whose size is at least minSize are retained.
 colorh1 <- cutreeStaticColor(hierTOM,cutHeight = 0.97)
 table(colorh1)
 ##定义基因显著性，这将表明该基因对于酵母的生存是否必须
@@ -154,10 +156,12 @@ verboseBarplot(GeneSignificance,colorh1,main="Module Significance",
 
 ##通过summarize每一module的第一该eigengene(principal components),
 ##可得知模型之间的关系，然后根据相互之间关系修正这些模型的eigengenes
+##Calculates module eigengenes (1st principal component) of modules
+##in a given single dataset.
 datME <- moduleEigengenes(datExpr[,restConnectivity],colorh1)
 
-##在模型的eigengenes之间定义一个差异检出，来追溯模型egiengenes
-##关系的信号
+##在模型的eigengenes之间定义一个差异测量，来追溯模型egiengenes
+##关系的信号,1减去相关性得到差异性
 dissimME <- 1-(t(cor(datME$eigengenes,method="p")))/2
 
 hclustdatME <- hclust(dist(dissimME),method="average")
@@ -173,9 +177,11 @@ signif(cor(datME$eigengenes,use="p"),2)
 ##不同模型的eigengenes(first PC)可能高度相关
 ##WGCNA可被解释为biologically motivated data reduction scheme
 ##允许最终成分之间的依赖性。将这和主成分析比较能够在不同成分
-##间假如正交性质
+##间加入正交性质
 ##由于模型可能代表了生物信号通路，但是没有生物学原因解释为何模型
 ##应该互相正交。
+##Langfelder P, Horvath S (2007) Eigengene networks for studying the 
+##relationships between co- expression modules. BMC Systems Biology 2007, 1:54
 
 ##探究平均基因表达或基因表达变异和connectivity之间的关联程度
 mean1 <- function(x)mean(x,na.rm=T)
@@ -200,7 +206,7 @@ which.module="blue"
 plotMat(t(scale(datExpr[ClusterSamples$order,restConnectivity][,colorh1==which.module])),
            nrgcols=30,rlabels=T,clabels=T,rcols=which.module,main=which.module)
 
-##每一个模型都应该有一个清晰的带状结构。对应每一个列，都应为相同颜色。白色的带带表缺失值。
+##每一个模型都应该有一个清晰的带状结构。对应每一个列，都应为相同颜色。白色的带表缺失值。
 
 ##针对所有基因定义非module基因为灰色
 color1 <- rep("grey",sum(restVariance))
@@ -214,10 +220,13 @@ CC <- clusterCoef(ADJrest)
 par(mfrow=c(1,1))
 plot(Connectivity[restConnectivity],CC,col=as.character(colorh1),
      xlab="Connectivity",ylab="Cluster Coefficient")
+##随着Connectivity增加，图中不同cluster逐渐分开
 
 ##计算模型内的cluster系数和connectivity之间的相关性
+####A data frame is split by row into data frames 
+##subsetted by the values of one or more factors, 
+##and function FUN is applied to each subset in turn.
 by(data.frame(CC=CC,k=Connectivity[restConnectivity]),INDICES=colorh1,FUN=cor)
-
 ##大部分module中，k和CC存在正相关性
 
 
@@ -231,11 +240,52 @@ thresholds1 <- c(seq(.1,.5,by=.1),seq(.55,.9,by=0.05))
 
 ##使用scale-free Topology标准来选择cutoff value。这里着重与线性回归模型匹配index
 ##(scale.law.R.2)，量化network满足scale-free topoloty的程度
-##在stop adjacency函数中使用函数PickHardThreshold评估cutoff vlaue
+##在step adjacency函数中使用函数PickHardThreshold评估cutoff vlaue
 RdichotTable <- pickHardThreshold(datExpr,cutVector = thresholds1)[[2]]
 ##hard threshold(cut)标准：high scale free R^2(列3),high connectivity(列6)
 ##negative slop(列4，-1左右)
-##根据结果
+##根据结果,行对应样本，列对应基因
+RdichotTable <- pickHardThreshold(datExpr,cutVector = thresholds1)[[2]]
+##绘制scale free topology model fitting index(R^2) versus cut-off tau
+cex1 <- 0.7
+par(mfrow=c(1,2))
+plot(RdichotTable[,1],-sign(RdichotTable[,4])*RdichotTable[,3],
+     xlab="Hard Threshold tau",ylab="Scale Free Topology Model Fit,
+     signed R^2",type="n")
+text(RdichotTable[,1],-sign(RdichotTable[,4])*RdichotTable[,3],labels=
+       thresholds1,cex=cex1)
+abline(h=0.85,col="red")
+plot(RdichotTable[,1],RdichotTable[,6],xlab="Hard Threshold tau",
+     ylab="Mean Connectivity",type="n")
+text(RdichotTable[,1],RdichotTable[,6],labels=thresholds1,cex=cex1)
+##图中可见，slop值在-1附近，平均连接数目合理地高34.5, 选择cut=0.65
+
+##查看针对不同的hard threshold，k Within and genes significance 相关性
+##在truquoise模型中的变化
+corhelp <- cor(datExpr[,restConnectivity],use="pairwise.complete.obs")
+whichmodule <- "turquoise"
+##接下来的数据框包含了对应不同hard thresholds的模型内部连接性
+datconnectivitiesHard <- data.frame(matrix(666,nrow=sum(color1==whichmodule),
+                                           ncol=length(thresholds1)))
+names(datconnectivitiesHard) <- paste("kWithinTau",thresholds1,sep="")
+for(i in c(1:length(thresholds1))){
+  datconnectivitiesHard[,i]=apply(abs(corhelp[colorh1==whichmodule,
+                                              colorh1==whichmodule])>
+                                    thresholds1[i],1,sum)
+}
+SpermanCorrelationsHard <- signif(cor(GeneSignificance[colorh1==
+                                                         whichmodule],
+                                      datconnectivitiesHard,method="s",
+                                      use="p"))
+
+
+
+
+AdjMatHARD <- abs(corhelp[restConnectivity,]>0.65+0)
+
+
+
+
 
 
 
