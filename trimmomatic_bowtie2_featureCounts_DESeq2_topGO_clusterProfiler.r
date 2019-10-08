@@ -21,126 +21,117 @@
 ####featureCounts ignoreDup=F,countMultiMappingReads=F
 ##featureCounts
 library(Rsubread)
-kp_21_exp <- featureCounts("kp_21_sangon_mapped_sorted.bam",annot.ext = "HS11286.gtf",
-                                  isGTFAnnotationFile = TRUE,GTF.featureType = "transcript",
-                                  GTF.attrType = "Name",isPairedEnd = TRUE,ignoreDup=FALSE,
-                                  requireBothEndsMapped=TRUE,nthreads=4,countChimericFragments=FALSE,
-                                  countMultiMappingReads=FALSE)
-kp_28_exp <- featureCounts("kp_28_sangon_mapped_sorted.bam",annot.ext = "HS11286.gtf",
-                                  isGTFAnnotationFile = TRUE,GTF.featureType = "transcript",
-                                  GTF.attrType = "Name",isPairedEnd = TRUE,ignoreDup=FALSE,
-                                  requireBothEndsMapped=TRUE,nthreads=4,countChimericFragments=FALSE,
-                                  countMultiMappingReads=FALSE)
+Results <- list()
+for(sample in c("PAO1","Y89","Y71","Y82","Y31")){
+  tmp <- c()
+  tmp <- paste0(sample,"_sorted.bam")
+  Results[[sample]] <- featureCounts(tmp,annot.ext="GCF_000006765.1_ASM676v1_genomic.gtf",
+                                     isGTFAnnotationFile = TRUE,GTF.featureType = "gene",
+                                     GTF.attrType = "gene_id",isPairedEnd = FALSE,ignoreDup = FALSE,
+                                     nthreads = 4,countChimericFragments = FALSE,
+                                     countMultiMappingReads = FALSE)
+}
+##paired-end reads featureCounts
+#sample <- featureCounts("sample.bam",annot.ext = "HS11286.gtf",
+#                        isGTFAnnotationFile = TRUE,GTF.featureType = "transcript",
+#                        GTF.attrType = "Name",isPairedEnd = TRUE,ignoreDup=FALSE,
+#                        requireBothEndsMapped=TRUE,nthreads=4,countChimericFragments=FALSE,
+#                        countMultiMappingReads=FALSE)
 
 ###collect counts
-fc_21 <- data.frame(Gene_ID=rownames(kp_21_exp$counts),Pos=paste0(
-  kp_21_exp$annotation$Chr,"[",kp_21_exp$annotation$Strand,"]",
-  kp_21_exp$annotation$Start,"-",kp_21_exp$annotation$End),
-  Length=kp_21_exp$annotation$Length,Count=kp_21_exp$counts[,1])
-fc_28 <- data.frame(Gene_ID=rownames(kp_28_exp$counts),Pos=paste0(
-  kp_28_exp$annotation$Chr,"[",kp_28_exp$annotation$Strand,"]",
-  kp_28_exp$annotation$Start,"-",kp_28_exp$annotation$End),
-  Length=kp_28_exp$annotation$Length,Count=kp_28_exp$counts[,1])
-
-##TPM
-fc_21$TPM <- ((fc_21$Count/fc_21$Length)*1000000)/
-  (sum(fc_21$Count/fc_21$Length))
-fc_28$TPM <- ((fc_28$Count/fc_28$Length)*1000000)/
-  (sum(fc_28$Count/fc_28$Length))
-
-##edgeR不过滤/或根据TPM>=5过滤
-##先过滤TPM >=5，最后直接使用差异
-#cts <- cts[unique(rownames(fc_28[fc_28$TPM>=5,]),
-#                  rownames(fc_21[fc_21$TPM>=5,])),]
-
-##选择不过滤，最后得出差异再过滤
-library(edgeR)
-cts <- data.frame(kp_21=fc_21$Count,kp_28=fc_28[rownames(fc_21),]$Count,
-                  row.names=rownames(fc_21))
-group=factor(c("kp_21","kp_28"),levels=c("kp_21","kp_28"))
-y <- DGEList(cts,group=group)
-y$samples$lib.size=colSums(y$counts)
-y <- calcNormFactors(y,method="TMM")
-
-##updated fc_sangon cpm rpkm normalized count
-cpm_sangon <- data.frame(cpm(y))
-fc_21$CPM <- cpm_sangon[rownames(fc_21),]$kp_21
-fc_28$CPM <- cpm_sangon[rownames(fc_28),]$kp_28
-#length
-rpkm_sangon <- data.frame(rpkm(y,gene.length =
-  c(fc_21[rownames(y$counts),]$Length,
-    fc_28[rownames(y$counts),]$Length)))
-fc_21$RPKM <- rpkm_sangon[rownames(fc_21),]$kp_21
-fc_28$RPKM <- rpkm_sangon[rownames(fc_28),]$kp_28
-#norm.count
-fc_21$Norm.Count <- fc_21$Count/y$samples$norm.factors[1]
-fc_28$Norm.Count <- fc_28$Count/y$samples$norm.factors[2]
-
+fc_counts <- list()
+for(sample in c("PAO1","Y89","Y71","Y82","Y31")){
+  tmp <- data.frame()
+  fc <- list()
+  fc <- Results[[sample]]
+  tmp <- data.frame(Gene_ID=rownames(fc$counts),Pos=paste0(
+    fc$annotation$Chr,"[",fc$annotation$Strand,"]",
+    fc$annotation$Start,"-",fc$annotation$End),
+    Length=fc$annotation$Length,Count=fc$counts[,1],
+    TPM=((fc$counts[,1]/fc$annotation$Length)*1000000)/
+      (sum(fc$counts[,1]/fc$annotation$Length))
+  )
+  fc_counts[[sample]] <- tmp
+}
 ##collection and print to file
-Total_counts <- data.frame(row.names=rownames(fc_21),
-                           Geneid=rownames(fc_21),
-                           Pos=fc_21$Pos,
-                           Length=fc_21$Length,
-                           Counts_kp_21=fc_21$Count,
-                           Counts_kp_28=fc_28[rownames(fc_21),]$Count,
-                           CPM_kp_21=fc_21$CPM,
-                           CPM_kp_28=fc_28[rownames(fc_21),]$CPM,
-                           RPKM_kp_21=fc_21$RPKM,
-                           RPKM_kp_28=fc_28[rownames(fc_21),]$RPKM,
-                           TPM_kp_21=fc_21$TPM,
-                           TPM_kp_28=fc_28[rownames(fc_21),]$TPM,
-                           Norm.Count_kp_21=fc_21$Norm.Count,
-                           Norm.Count_kp_28=fc_28[rownames(fc_21),]$Norm.Count
+##因为重名，所有.1后缀为对应的TPM值
+Total_counts <- data.frame(row.names=rownames(fc_counts[[1]]),
+                           Gene_ID=fc_counts[[1]]$Gene_ID,
+                           Pos=fc_counts[[1]]$Pos,
+                           Length=fc_counts[[1]]$Length,
+                           sapply(fc_counts,function(x)x$Count),
+                           sapply(fc_counts,function(x)x$TPM)
 )
 write.table(Total_counts,file="All_samples_count_statistic.txt",sep="\t",quote=F)
 write.csv(Total_counts,file="All_samples_count_statistic.csv")
 
-### cts count normalized by norm.factors and is used for DEGseq package analysis
-library(DEGseq)
-cts$kp_21_norm <- cts$kp_21/(y$samples$norm.factors[1])
-cts$kp_28_norm <- cts$kp_28/(y$samples$norm.factors[2])
+##构建DESeq2 countData/colData
+countData <- sapply(fc_counts,function(x)x$Count)
+rownames(countData) <- fc_counts[[1]]$Gene_ID
+colData <- matrix(666,nrow=length(fc_counts))
+rownames(colData) <- colnames(countData)
+colData[,1] <- c("AS","MDR","MDR","MDR","AS")
+colnames(colData) <- "condition"
 
-write.table(cts,file="cts_normalized_by_norm_factor.txt",
-            sep="\t",row.names = TRUE)
-kp_21_cts <- readGeneExp(file="cts_normalized_by_norm_factor.txt",geneCol=1,valCol = 4)
-kp_28_cts <- readGeneExp(file="cts_normalized_by_norm_factor.txt",geneCol=1,valCol = 5)
-layout(matrix(c(1,2,3,4,5,6),3,2,byrow=T))
-par(mar=c(2,2,2,2))
-DEGexp(geneExpMatrix1 = kp_28_cts,geneCol1 = 1,expCol1 = 2,groupLabel1 = "kp_28_cts",
-       geneExpMatrix2 = kp_21_cts,geneCol2 = 1,expCol2 = 2,groupLabel2 = "kp_21_cts",
-       method="MARS",rawCount = F,thresholdKind=3,qValue=0.05,normalMethod = "none",
-       outputDir="./kp_sangon_cts_norm_degseq_results")
+##DESeq2差异分析
+library(DESeq2)
+dds <- DESeqDataSetFromMatrix(countData = countData,colData = colData,
+                              design = ~ condition)
+##pre-filtering，过滤掉low count的genes(没有read或几乎没有read)
+##此过程非必要，后续会自动过滤，为实现普遍结论，而非个别差异，过滤read count
+##edgeR 建议5-10个方为表达
+dds <- dds[rowSums(counts(dds)>=5)==5,]
 
-##topGO analysis 
-kp_score <- read.delim("./kp_sangon_cts_norm_degseq_results/output_score.txt",
-                      header=T,sep="\t")
-rownames(kp_score) <- kp_score$GeneNames
+##设置factor levels
+dds$condition <- factor(dds$condition,levels=c("MDR","AS"))
+##dds$condition <- relevel(dds$condition,ref="MDR")
+##dds$condition <- droplevels(dds$level)
 
-##选择后过滤TMP>=5
-kp_score$kp_21_TPM <- fc_21[rownames(kp_score),]$TPM
-kp_score$kp_28_TPM <- fc_28[rownames(kp_score),]$TPM
+##DE analysis
+##1, estimate of size factors: estimateSizeFactors
+##2, estimate of dispersion: esitmatedispersions
+##3, Negative Binomial GLM fitting and Wald statistics: nbinomWaldTest
+##4, results函数生成log2倍数改变及对应p值
+dds <- DESeq(dds)
+##默认为last level vs. ref level
+##resultsNames(dds) 查看coefficient名称可知
+##这里通过contrast指定 MDR/AS，指定adjusted p-value cutoff (FDR)阈值为0.05
+res <- results(dds,contrast = c("condition","MDR","AS"),alpha=0.05)
+##removeResults函数返回至DESeqDataSet对象
 
-##log2.Fold_change.
-DE_28vs21_up <- kp_score[kp_score$log2.Fold_change. > 1 & 
-                           kp_score$Signature.q.value.Benjamini.et.al..1995....0.05.=="TRUE" &
-                           kp_score$kp_21_TPM >= 5 & kp_score$kp_28_TPM >= 5,]
-DE_28vs21_down <- kp_score[kp_score$log2.Fold_change. < -1 &
-                             kp_score$Signature.q.value.Benjamini.et.al..1995....0.05.=="TRUE" &
-                             kp_score$kp_21_TPM >= 5 & kp_score$kp_28_TPM >= 5,]
+##结果根据padj排序
+resOrdered <- res[order(res$padj),]
 
-##log2.Fold_change..normalized
-#DE_28vs21_up <- kp_score[kp_score$log2.Fold_change..normalized > 1 & 
-#                          kp_score$Signature.q.value.Benjamini.et.al..1995....0.05.=="TRUE" &
-#                           kp_score$kp_21_TPM >= 5 & kp_score$kp_28_TPM >= 5,]
-#DE_28vs21_down <- kp_score[kp_score$log2.Fold_change..normalized < -1 &
-#                          kp_score$Signature.q.value.Benjamini.et.al..1995....0.05.=="TRUE" &
-#                            kp_score$kp_21_TPM >= 5 & kp_score$kp_28_TPM >= 5,]
+##lfcshrink, 仅为绘图和排序使用，最终差异结果和results无异
+#res_shrunken_normal <- lfcShrink(dds,contrast = c("condition","MDR","AS"),
+#res=res,type="normal",alpha=0.05)
 
-##选择先过滤TPM>=5
-#DE_28vs21_up <- kp_score[kp_score$log2.Fold_change. > 1 & 
-#                          kp_score$Signature.q.value.Benjamini.et.al..1995....0.05.=="TRUE",]
-#DE_28vs21_down <- kp_score[kp_score$log2.Fold_change. < -1 &
-#                          kp_score$Signature.q.value.Benjamini.et.al..1995....0.05.=="TRUE",]
+##绘制MA-plot
+plotMA(res,main="DESeq2",ylim=c(-2,2))
+##idx <- identity(res$baseMean,res$log2FoldChange)
+##rownames(res)[idex] 交互式获得对应点坐标信息
+
+##count plots,检查单个基因的count read
+plotCounts(dds,gene=which.min(res$padj),intgroup = "condition")
+
+##查看rsults返回结果描述
+##p-values == NA
+##1，一行中，所有样本counts都为0,baseMean为0，其他都为NA
+##2，若一行中包含极端count至，p和adjusted p都为NA
+##outlier counts的检出是根据Cook's distance
+##3，若一行由于低于mean normalized count
+##而被automatic independent filtering, 那么只有adjusted p为NA
+##mcols(resOrdered)$description
+##详细查看metadata(res)
+##sizeFacots(dds)
+##coef(dds)
+##
+
+##整理结果，绘制PCA/heatmap,volcano,DEgenes
+
+
+
+
 
 ###Part 3
 ##topGO enrichment
