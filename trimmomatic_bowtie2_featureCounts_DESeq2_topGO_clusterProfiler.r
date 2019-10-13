@@ -18,7 +18,8 @@
 #samtools sort -n kp_28_sangon_mapped.bam -o kp_28_sangon_mapped_sorted.bam
 
 ##part 2
-####featureCounts ignoreDup=F,countMultiMappingReads=F
+##考虑到基因重组，仅计算primary比对即可
+####featureCounts ignoreDup=F,primaryOnly=TRUE
 ##featureCounts
 library(Rsubread)
 Results <- list()
@@ -28,15 +29,13 @@ for(sample in c("PAO1","Y89","Y71","Y82","Y31")){
   Results[[sample]] <- featureCounts(tmp,annot.ext="GCF_000006765.1_ASM676v1_genomic.gtf",
                                      isGTFAnnotationFile = TRUE,GTF.featureType = "gene",
                                      GTF.attrType = "gene_id",isPairedEnd = FALSE,ignoreDup = FALSE,
-                                     nthreads = 4,countChimericFragments = FALSE,
-                                     countMultiMappingReads = FALSE)
+                                     primaryOnlyt=TRUE,nthreads = 4)
 }
 ##paired-end reads featureCounts
 #sample <- featureCounts("sample.bam",annot.ext = "HS11286.gtf",
 #                        isGTFAnnotationFile = TRUE,GTF.featureType = "transcript",
 #                        GTF.attrType = "Name",isPairedEnd = TRUE,ignoreDup=FALSE,
-#                        requireBothEndsMapped=TRUE,nthreads=4,countChimericFragments=FALSE,
-#                        countMultiMappingReads=FALSE)
+#                        primaryOnly=TRUE,nthreads=4)
 
 ###collect counts
 fc_counts <- list()
@@ -53,17 +52,6 @@ for(sample in c("PAO1","Y89","Y71","Y82","Y31")){
   )
   fc_counts[[sample]] <- tmp
 }
-##collection and print to file
-##因为重名，所有.1后缀为对应的TPM值
-Total_counts <- data.frame(row.names=rownames(fc_counts[[1]]),
-                           Gene_ID=fc_counts[[1]]$Gene_ID,
-                           Pos=fc_counts[[1]]$Pos,
-                           Length=fc_counts[[1]]$Length,
-                           sapply(fc_counts,function(x)x$Count),
-                           sapply(fc_counts,function(x)x$TPM)
-)
-write.table(Total_counts,file="All_samples_count_statistic.txt",sep="\t",quote=F)
-write.csv(Total_counts,file="All_samples_count_statistic.csv")
 
 ##构建DESeq2 countData/colData
 countData <- sapply(fc_counts,function(x)x$Count)
@@ -93,6 +81,20 @@ dds$condition <- factor(dds$condition,levels=c("MDR","AS"))
 ##3, Negative Binomial GLM fitting and Wald statistics: nbinomWaldTest
 ##4, results函数生成log2倍数改变及对应p值
 dds <- DESeq(dds)
+
+##collection and print to file
+##因为重名，所有.1后缀为对应的TPM值,.2后缀为sizeFactor矫正后counts
+#Total_counts <- data.frame(row.names=rownames(fc_counts[[1]]),
+#                           Gene_ID=fc_counts[[1]]$Gene_ID,
+#                           Pos=fc_counts[[1]]$Pos,
+#                           Length=fc_counts[[1]]$Length,
+#                           sapply(fc_counts,function(x)x$Count),
+#                           sapply(fc_counts,function(x)x$TPM),
+#                           counts(dds,normalized=TRUE)
+#)
+#write.table(Total_counts,file="All_samples_count_statistic.txt",sep="\t",quote=F)
+#write.csv(Total_counts,file="All_samples_count_statistic.csv")
+
 ##默认为last level vs. ref level
 ##resultsNames(dds) 查看coefficient名称可知
 ##这里通过contrast指定 MDR/AS，指定adjusted p-value cutoff (FDR)阈值为0.05
@@ -399,7 +401,7 @@ for(n in 1:3){
   dev.off()
 }
 
-##up heatmap of GO terms with genes
+##up heatmap of GO terms with genes by names
 for(m in 1:3){
   tmp <- data.frame()
   genes_up <- vector()
@@ -442,11 +444,61 @@ for(m in 1:3){
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
     labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Up_",go_type[m],"_heapmap.pdf"),
+  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Up_",go_type[m],"_by_Name_heapmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
 
-##down heatmap of GO terms with genes
+##up heatmap of GO terms with genes sorted by fold
+for(m in 1:3){
+  tmp <- data.frame()
+  genes_up <- vector()
+  Data <- data.frame()
+  tmp=up_go_results_table[[m]]
+  for(i in 1:nrow(tmp)){
+    genes_up <- append(genes_up, unlist(strsplit(tmp[i,]$Sig_Genes,",")))
+  }
+  genes_up <- sort(unique(genes_up))
+  genes_up <- genes_up[order(DE_28vs21_up[genes_up,"log2.Fold_change."],
+                             decreasing = TRUE)]
+  
+  Data <- data.frame(matrix(1:length(genes_up),nrow=1))
+  for(j in 1:nrow(tmp)){
+    Data[j,] <- as.integer(genes_up %in% unlist(strsplit(tmp[j,]$Sig_Genes,",")))
+  }
+  colnames(Data) <- factor(genes_up,levels=genes_up)
+  rownames(Data) <- factor(tmp$GO.ID,levels=rev(tmp$GO.ID))
+  x1 <- vector()
+  x2 <- vector()
+  y1 <- vector()
+  y2 <- vector()
+  q <- vector()
+  d <- data.frame()
+  p <- NULL
+  for(k in 1:nrow(Data)){
+    for(n in 1:ncol(Data)){
+      x1 <- append(x1,Data[k,n]*(n-0.45))
+      x2 <- append(x2,Data[k,n]*(n+0.45))
+      y1 <- append(y1, Data[k,n]*(k-0.45))
+      y2 <- append(y2, Data[k,n]*(k+0.45))
+    }
+    q <- append(q,rep(tmp[k,]$qvalue,length(genes_up)))
+  }
+  d <- data.frame(x1=x1,x2=x2,y1=y1,y2=y2,q=q)
+  
+  p <- ggplot() + theme_bw()+ geom_rect(
+    data=d,mapping=aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,fill=q))+
+    scale_fill_gradient(low="red",high="blue")+
+    scale_y_continuous(breaks=seq(1,length(tmp$GO.ID)),labels=tmp$GO.ID,expand = c(0,0))+
+    scale_x_continuous(breaks=seq(1,length(genes_up)),labels=genes_up,expand = c(0,0))+
+    theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
+          plot.title=element_text(hjust = 0.5))+
+    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
+  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Up_by_",go_type[m],"_by_Fold_heapmap.pdf"),
+         plot=p,width = 28,height=18,units = "cm")
+}
+
+
+##down heatmap of GO terms with genes by names
 for(m in 1:3){
   tmp <- data.frame()
   genes_down <- vector()
@@ -488,9 +540,57 @@ for(m in 1:3){
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
     labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Down_",go_type[m],"_heapmap.pdf"),
+  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Down_",go_type[m],"_by_Name_heapmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
+
+##down heatmap of GO terms with genes by fold
+for(m in 1:3){
+  tmp <- data.frame()
+  genes_down <- vector()
+  Data <- data.frame()
+  tmp=down_go_results_table[[m]]
+  for(i in 1:nrow(tmp)){
+    genes_down <- append(genes_down, unlist(strsplit(tmp[i,]$Sig_Genes,",")))
+  }
+  genes_down <- sort(unique(genes_down))
+  genes_down <- genes_down[order(DE_28vs21_down[genes_down,"log2.Fold_change."])]
+  
+  Data <- data.frame(matrix(1:length(genes_down),nrow=1))
+  for(j in 1:nrow(tmp)){
+    Data[j,] <- as.integer(genes_down %in% unlist(strsplit(tmp[j,]$Sig_Genes,",")))
+  }
+  colnames(Data) <- factor(genes_down,levels=genes_down)
+  rownames(Data) <- factor(tmp$GO.ID,levels=rev(tmp$GO.ID))
+  x1 <- vector()
+  x2 <- vector()
+  y1 <- vector()
+  y2 <- vector()
+  q <- vector()
+  p <- NULL
+  for(k in 1:nrow(Data)){
+    for(n in 1:ncol(Data)){
+      x1 <- append(x1,Data[k,n]*(n-0.45))
+      x2 <- append(x2,Data[k,n]*(n+0.45))
+      y1 <- append(y1, Data[k,n]*(k-0.45))
+      y2 <- append(y2, Data[k,n]*(k+0.45))
+    }
+    q <- append(q,rep(tmp[k,]$qvalue,length(genes_down)))
+  }
+  d <- data.frame(x1=x1,x2=x2,y1=y1,y2=y2,q=q)
+  
+  p <- ggplot() + theme_bw()+ geom_rect(
+    data=d,mapping=aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,fill=q))+
+    scale_fill_gradient(low="red",high="blue")+
+    scale_y_continuous(breaks=seq(1,length(tmp$GO.ID)),labels=tmp$GO.ID,expand = c(0,0))+
+    scale_x_continuous(breaks=seq(1,length(genes_down)),labels=genes_down,expand = c(0,0))+
+    theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
+          plot.title=element_text(hjust = 0.5))+
+    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
+  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Down_",go_type[m],"by_Fold_heapmap.pdf"),
+         plot=p,width = 28,height=18,units = "cm")
+}
+
 
 ##part 4 
 ##clusterProfiler kegg analysis
@@ -535,7 +635,7 @@ for(i in 1:2){
   ggsave(paste0("./GO_enrichment_results/",name,"_Enrichment",".pdf"),plot=p,width=25,height=15,units = "cm")
 } 
 
-##heatmap for kegg enrichment 
+##heatmap for kegg enrichment by names
 for(m in 1:2){
   tmp <- data.frame()
   genes <- vector()
@@ -582,7 +682,65 @@ for(m in 1:2){
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
     labs(title=paste0(name_kegg[m],"_Heatmap"),y="KO Terms",x="DE Genes",fill="p.adjust")
-  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_heapmap.pdf"),
+  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_by_Name_heapmap.pdf"),
+         plot=p,width = 28,height=18,units = "cm") 
+}
+
+##heatmap for kegg enrichment sorted by folds
+for(m in 1:2){
+  tmp <- data.frame()
+  genes <- vector()
+  Data <- data.frame()
+  if(nrow(kegg_28vs21_results[[m]])>30){
+    tmp <- kegg_28vs21_results[[m]][1:30,]
+  }else{
+    tmp <- kegg_28vs21_results[[m]]
+  }
+  
+  for(i in 1:nrow(tmp)){
+    genes <- append(genes, unlist(strsplit(tmp$geneID,"/")))
+  }
+  
+  genes <- sort(unique(genes))
+  if(m==1){
+    genes <- genes[order(DE_28vs21_up[genes,"log2.Fold_change."],
+                         decreasing = TRUE)]
+  }else{
+    genes <- genes[order(DE_28vs21_up[genes,"log2.Fold_change."])]
+  }
+  
+  Data <- data.frame(matrix(1:length(genes),nrow=1))
+  for(j in 1:nrow(tmp)){
+    Data[j,] <- as.integer(genes %in% unlist(strsplit(tmp[j,]$geneID,"/")))
+  }
+  colnames(Data) <- factor(genes,levels=genes)
+  rownames(Data) <- factor(tmp$ID,levels=rev(tmp$ID))
+  x1 <- vector()
+  x2 <- vector()
+  y1 <- vector()
+  y2 <- vector()
+  q <- vector()
+  p <- NULL
+  for(k in 1:nrow(Data)){
+    for(n in 1:ncol(Data)){
+      x1 <- append(x1,Data[k,n]*(n-0.45))
+      x2 <- append(x2,Data[k,n]*(n+0.45))
+      y1 <- append(y1, Data[k,n]*(k-0.45))
+      y2 <- append(y2, Data[k,n]*(k+0.45))
+    }
+    q <- append(q,rep(tmp[k,]$p.adjust,length(genes)))
+  }
+  d <- data.frame(x1=x1,x2=x2,y1=y1,y2=y2,q=q)
+  
+  p <- ggplot() + theme_bw()+ geom_rect(
+    data=d,mapping=aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,fill=q))+
+    scale_fill_gradient(low="red",high="blue")+
+    scale_y_continuous(breaks=seq(1,length(tmp$ID)),labels=tmp$ID,expand = c(0,0))+
+    scale_x_continuous(breaks=seq(1,length(genes)),labels=genes,expand = c(0,0))+
+    theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
+          plot.title=element_text(hjust = 0.5))+
+    labs(title=paste0(name_kegg[m],"_Heatmap"),y="KO Terms",x="DE Genes",fill="p.adjust")
+  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_by_Fold_heapmap.pdf"),
          plot=p,width = 28,height=18,units = "cm") 
 }
 
