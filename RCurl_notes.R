@@ -92,6 +92,18 @@ writeBin(tmp,note)
 close(note)
 
 ##getBinaryURL() 批量下载文件
+##dirlistonly：仅读取目录在ftp很出色
+##filename <- getURL(url,dirlistonly=TRUE)
+#这里filename对应获得就是所有的目录名称
+
+##followlocation 支持重定向
+curl <- getCurlHandle()
+destination <- getURL("http://www.sina.cn",curl=curl,
+                      followlocation=TRUE,verbose=TRUE) ##www.sina.cn
+getCurlInfo(curl)$response.code
+##这里设置followlocation=TRUE，可实现自动跳转,返回200
+
+##批量下载
 url <- "http://rfunction.com/code/1202/"
 tmp <- getURL(url,verbose=TRUE) ##获取网页,可能需要多试几次
 ##查看网页源码，之后确定抓取信息的"代码字串"特征
@@ -120,11 +132,30 @@ url <- "http://data.earthquake.cn/datashare/datashare_more_quickdata_new.jsp"
 ##英文界面没问题
 url <- "http://219.143.71.11/wdc4seis@bj/earthquakes/csn_quakes_p001.jsp"
 
+##Parses an XML or HTML file or string containing XML/HTML content, 
+##and generates an R structure representing the XML/HTML tree. 
+##Use htmlTreeParse when the content is known to be (potentially malformed) HTML
 wp <- getURL(url)
 doc <- htmlParse(wp,asText=TRUE) ##这里记得encoding
 tables <- readHTMLTable(doc,header=F,which=2) ##选取第二个表格
-
 head(tables)
+
+##Xpath()
+url <- "https://www.w3school.com.cn/example/xdom/books.xml"
+doc <- xmlParse(url)
+##添加谓语
+getNodeSet(doc,"/bookstore/book[1]") ##获得根节点外的第一个节点信息
+getNodeSet(doc,"/bookstore/[position() < 3]") ##获取前两本
+getNodeSet(doc,"/bookstore/book[last()]") ##最后一本
+getNodeSet(doc, "//title[@lang]") ##对应属性
+
+
+
+
+
+
+
+
 
 
 

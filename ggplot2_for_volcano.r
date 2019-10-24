@@ -1,3 +1,5 @@
+library(ggplot2)
+library(ggrepel)
 ##get the table of edgeR $count
 table_43vsLAC_4 <- lrt_0.04_43vsLAC_4$table
 ##distribute the color according to the logFC and PValue from table_43vsLAC_4

@@ -1,6 +1,6 @@
 ###part 1
 ##trimmomatic
-#trimmomatic PE -summary kp_21_trimmed.log kp_21_R1.fastq.gz kp_21_R2.fastq.gz -baseout kp_21_trimmed.fastq.gz \
+#trimmomatic PE -summary C_trimmed.log C_R1.fastq.gz C_R2.fastq.gz -baseout C_trimmed.fastq.gz \
 #ILLUMINACLIP:Sabgon_adapter.fa:2:30:10 LEADING:20 TRAILING:20 SLIDINGWINDOW:5:20 MINLEN:35 
 ##sangon_adapter.fa
 ##>PrefixPE/1
@@ -9,131 +9,150 @@
 ##AGATCGGAAGAGCGTCGTGTAGGGA
 
 ###align bowtie2 with shell scripts
-#bowtie2-build GCF_000240185.1_ASM24018v2_genomic.fna hs11286_index
-#bowtie2 -x hs11286_index -1 kp_21_sangon_1P.fastq.gz -2 kp_21_sangon_2P.fastq.gz -S kp_21_sangon_mapped.sam
-#bowtie2 -x hs11286_index -1 kp_28_sangon_1P.fastq.gz -2 kp_28_sangon_2P.fastq.gz -S kp_28_sangon_mapped.sam
-#samtools view -bS kp_21_sangon_mapped.sam > kp_21_sangon_mapped.bam
-#samtools view -bS kp_28_sangon_mapped.sam > kp_28_sangon_mapped.bam
-#samtools sort -n kp_21_sangon_mapped.bam -o kp_21_sangon_mapped_sorted.bam
-#samtools sort -n kp_28_sangon_mapped.bam -o kp_28_sangon_mapped_sorted.bam
+#bowtie2-build GCF_000240185.1_ASM24018v2_genomic.fna hs11S6_index
+#bowtie2 -x hs11S6_index -1 C_sangon_1P.fastq.gz -2 C_sangon_2P.fastq.gz -S C_sangon_mapped.sam
+#bowtie2 -x hs11S6_index -1 S_sangon_1P.fastq.gz -2 S_sangon_2P.fastq.gz -S S_sangon_mapped.sam
+#samtools view -bS C_sangon_mapped.sam > C_sangon_mapped.bam
+#samtools view -bS S_sangon_mapped.sam > S_sangon_mapped.bam
+#samtools sort -n C_sangon_mapped.bam -o C_sangon_mapped_sorted.bam
+#samtools sort -n S_sangon_mapped.bam -o S_sangon_mapped_sorted.bam
 
 ##part 2
 ##考虑到基因重组，仅计算primary 比对即可
 ####featureCounts ignoreDup=F,primaryOnly=TRUE
 ##featureCounts
 library(Rsubread)
-kp_21_exp <- featureCounts("kp_21_sangon_mapped_sorted.bam",annot.ext = "HS11286.gtf",
-                                  isGTFAnnotationFile = TRUE,GTF.featureType = "transcript",
-                                  GTF.attrType = "Name",isPairedEnd = TRUE,ignoreDup=FALSE,
-                                  primaryOnly=TRUE,nthreads=4)
-kp_28_exp <- featureCounts("kp_28_sangon_mapped_sorted.bam",annot.ext = "HS11286.gtf",
-                                  isGTFAnnotationFile = TRUE,GTF.featureType = "transcript",
-                                  GTF.attrType = "Name",isPairedEnd = TRUE,ignoreDup=FALSE,
-                                  primaryOnly=TRUE,nthreads=4)
+##modify the input according to the reality, strandSpecific=2
+sample_s <- "LAC_4_trimmo_sangon_mapped_sorted.bam"
+sample_c <- "X43_trimmo_sangon_mapped_sorted.bam"
+gtf_file <- "LAC_4.gtf"
+featuretype <- "transcript"
+attrtype <- "locus_tag"
+anno_file <- "LAC_4_annotation_extraction.txt"
+go_file <- "LAC_4_Sangon_go.txt"
+output <- "LAC_4_vs_X43"
+##
+S_exp <- featureCounts(sample_s,annot.ext = gtf_file,
+                           isGTFAnnotationFile = TRUE,GTF.featureType = featuretype,
+                           GTF.attrType = attrtype,isPairedEnd = TRUE,allowMultiOverlap=TRUE,
+                           primaryOnly=TRUE,strandSpecific=2,nthreads=4)
+C_exp <- featureCounts(sample_c,annot.ext = gtf_file,
+                           isGTFAnnotationFile = TRUE,GTF.featureType = featuretype,
+                           GTF.attrType = attrtype,isPairedEnd = TRUE,allowMultiOverlap=TRUE,
+                           primaryOnly=TRUE,strandSpecific=2,nthreads=4)
 
 ###collect counts
-fc_21 <- data.frame(Gene_ID=rownames(kp_21_exp$counts),Pos=paste0(
-  kp_21_exp$annotation$Chr,"[",kp_21_exp$annotation$Strand,"]",
-  kp_21_exp$annotation$Start,"-",kp_21_exp$annotation$End),
-  Length=kp_21_exp$annotation$Length,Count=kp_21_exp$counts[,1])
-fc_28 <- data.frame(Gene_ID=rownames(kp_28_exp$counts),Pos=paste0(
-  kp_28_exp$annotation$Chr,"[",kp_28_exp$annotation$Strand,"]",
-  kp_28_exp$annotation$Start,"-",kp_28_exp$annotation$End),
-  Length=kp_28_exp$annotation$Length,Count=kp_28_exp$counts[,1])
+fc_S <- data.frame(Gene_ID=rownames(S_exp$counts),Pos=paste0(
+  S_exp$annotation$Chr,"[",S_exp$annotation$Strand,"]",
+  S_exp$annotation$Start,"-",S_exp$annotation$End),
+  Length=S_exp$annotation$Length,Count=S_exp$counts[,1])
+fc_C <- data.frame(Gene_ID=rownames(C_exp$counts),Pos=paste0(
+  C_exp$annotation$Chr,"[",C_exp$annotation$Strand,"]",
+  C_exp$annotation$Start,"-",C_exp$annotation$End),
+  Length=C_exp$annotation$Length,Count=C_exp$counts[,1])
 
 ##选择不过滤，最后得出差异再过滤
 library(edgeR)
-cts <- data.frame(kp_21=fc_21$Count,kp_28=fc_28[rownames(fc_21),]$Count,
-                  row.names=rownames(fc_21))
-group=factor(c("kp_21","kp_28"),levels=c("kp_21","kp_28"))
+cts <- data.frame(S=fc_S$Count,C=fc_C[rownames(fc_S),]$Count,
+                  row.names=rownames(fc_S))
+group=factor(c("S","C"),levels=c("S","C"))
 y <- DGEList(cts,group=group)
-y$samples$lib.size=colSums(y$counts)
+#y$samples$lib.size=colSums(y$counts)
 y <- calcNormFactors(y,method="TMM")
 
 #norm.count
-fc_21$Norm.Count <- fc_21$Count/y$samples$norm.factors[1]
-fc_28$Norm.Count <- fc_28$Count/y$samples$norm.factors[2]
+fc_S$Norm.Count <- fc_S$Count/y$samples$norm.factors[1]
+fc_C$Norm.Count <- fc_C$Count/y$samples$norm.factors[2]
 ##TPM
-fc_21$TPM <- ((fc_21$Norm.Coun/fc_21$Length)*1000000)/
-  (sum(fc_21$Norm.Coun/fc_21$Length))
-fc_28$TPM <- ((fc_28$Norm.Coun/fc_28$Length)*1000000)/
-  (sum(fc_28$Norm.Coun/fc_28$Length))
+fc_S$TPM <- ((fc_S$Norm.Coun/fc_S$Length)*1000000)/
+  (sum(fc_S$Norm.Coun/fc_S$Length))
+fc_C$TPM <- ((fc_C$Norm.Coun/fc_C$Length)*1000000)/
+  (sum(fc_C$Norm.Coun/fc_C$Length))
 ##updated fc_sangon cpm rpkm normalized count
 cpm_sangon <- data.frame(cpm(y))
-fc_21$CPM <- cpm_sangon[rownames(fc_21),]$kp_21
-fc_28$CPM <- cpm_sangon[rownames(fc_28),]$kp_28
+fc_S$CPM <- cpm_sangon[rownames(fc_S),]$S
+fc_C$CPM <- cpm_sangon[rownames(fc_C),]$C
 #length
 rpkm_sangon <- data.frame(rpkm(y,gene.length =
-  c(fc_21[rownames(y$counts),]$Length,
-    fc_28[rownames(y$counts),]$Length)))
-fc_21$RPKM <- rpkm_sangon[rownames(fc_21),]$kp_21
-fc_28$RPKM <- rpkm_sangon[rownames(fc_28),]$kp_28
+  c(fc_S[rownames(y$counts),]$Length,
+    fc_C[rownames(y$counts),]$Length)))
+fc_S$RPKM <- rpkm_sangon[rownames(fc_S),]$S
+fc_C$RPKM <- rpkm_sangon[rownames(fc_C),]$C
 
-##collection and print to file
-Total_counts <- data.frame(row.names=rownames(fc_21),
-                           Geneid=rownames(fc_21),
-                           Pos=fc_21$Pos,
-                           Length=fc_21$Length,
-                           Counts_kp_21=fc_21$Count,
-                           Counts_kp_28=fc_28[rownames(fc_21),]$Count,
-                           CPM_kp_21=fc_21$CPM,
-                           CPM_kp_28=fc_28[rownames(fc_21),]$CPM,
-                           RPKM_kp_21=fc_21$RPKM,
-                           RPKM_kp_28=fc_28[rownames(fc_21),]$RPKM,
-                           TPM_kp_21=fc_21$TPM,
-                           TPM_kp_28=fc_28[rownames(fc_21),]$TPM,
-                           Norm.Count_kp_21=fc_21$Norm.Count,
-                           Norm.Count_kp_28=fc_28[rownames(fc_21),]$Norm.Count
+##collection and print to file, add the annotation contents
+Anno <- read.delim(anno_file,sep="\t",header=FALSE,
+                   row.names = 3)
+Total_counts <- data.frame(row.names=rownames(fc_S),
+                           Geneid=rownames(fc_S),
+                           Pos=fc_S$Pos,
+                           Length=fc_S$Length,
+                           Counts_S=fc_S$Count,
+                           Counts_C=fc_C[rownames(fc_S),]$Count,
+                           CPM_S=fc_S$CPM,
+                           CPM_C=fc_C[rownames(fc_S),]$CPM,
+                           RPKM_S=fc_S$RPKM,
+                           RPKM_C=fc_C[rownames(fc_S),]$RPKM,
+                           TPM_S=fc_S$TPM,
+                           TPM_C=fc_C[rownames(fc_S),]$TPM,
+                           Norm.Count_S=fc_S$Norm.Count,
+                           Norm.Count_C=fc_C[rownames(fc_S),]$Norm.Count,
+                           Anno=Anno[rownames(fc_S),]$V5
 )
-write.table(Total_counts,file="All_samples_count_statistic.txt",sep="\t",quote=F)
-write.csv(Total_counts,file="All_samples_count_statistic.csv")
+write.table(Total_counts,file="All_samples_count_statistic.xls",sep="\t",quote=FALSE,
+            row.names=FALSE)
 
 ### cts count normalized by norm.factors and is used for DEGseq package analysis
 library(DEGseq)
-cts$kp_21_norm <- cts$kp_21/(y$samples$norm.factors[1])
-cts$kp_28_norm <- cts$kp_28/(y$samples$norm.factors[2])
+cts$S_norm <- cts$S/(y$samples$norm.factors[1])
+cts$C_norm <- cts$C/(y$samples$norm.factors[2])
 
 write.table(cts,file="cts_normalized_by_norm_factor.txt",
             sep="\t",row.names = TRUE)
-kp_21_cts <- readGeneExp(file="cts_normalized_by_norm_factor.txt",geneCol=1,valCol = 4)
-kp_28_cts <- readGeneExp(file="cts_normalized_by_norm_factor.txt",geneCol=1,valCol = 5)
+S_cts <- readGeneExp(file="cts_normalized_by_norm_factor.txt",geneCol=1,valCol = 4)
+C_cts <- readGeneExp(file="cts_normalized_by_norm_factor.txt",geneCol=1,valCol = 5)
 layout(matrix(c(1,2,3,4,5,6),3,2,byrow=T))
 par(mar=c(2,2,2,2))
-DEGexp(geneExpMatrix1 = kp_28_cts,geneCol1 = 1,expCol1 = 2,groupLabel1 = "kp_28_cts",
-       geneExpMatrix2 = kp_21_cts,geneCol2 = 1,expCol2 = 2,groupLabel2 = "kp_21_cts",
-       method="MARS",rawCount = F,thresholdKind=3,qValue=0.05,normalMethod = "none",
-       outputDir="./kp_sangon_cts_norm_degseq_results")
+DEGexp(geneExpMatrix1 = S_cts,geneCol1 = 1,expCol1 = 2,groupLabel1 = "S_cts",
+       geneExpMatrix2 = C_cts,geneCol2 = 1,expCol2 = 2,groupLabel2 = "C_cts",
+       method="MARS",rawCount = F,thresholdKind=3,qValue=0.05,
+       outputDir="./sangon_cts_norm_degseq_results")
 
 ##topGO analysis 
-kp_score <- read.delim("./kp_sangon_cts_norm_degseq_results/output_score.txt",
+score <- read.delim("./sangon_cts_norm_degseq_results/output_score.txt",
                       header=T,sep="\t")
-rownames(kp_score) <- kp_score$GeneNames
+rownames(score) <- score$GeneNames
 
 ##选择后过滤TMP>=5
-kp_score$kp_21_TPM <- fc_21[rownames(kp_score),]$TPM
-kp_score$kp_28_TPM <- fc_28[rownames(kp_score),]$TPM
-
+score$S_TPM <- fc_S[rownames(score),]$TPM
+score$C_TPM <- fc_C[rownames(score),]$TPM
+score$Anno <- Anno[rownames(score),]$V5
 ##log2.Fold_change.
-DE_28vs21_up <- kp_score[kp_score$log2.Fold_change. > 1 & 
-                           kp_score$Signature.q.value.Benjamini.et.al..1995....0.05.=="TRUE" &
-                           kp_score$kp_28_TPM >= 5,]
-DE_28vs21_down <- kp_score[kp_score$log2.Fold_change. < -1 &
-                             kp_score$Signature.q.value.Benjamini.et.al..1995....0.05.=="TRUE" &
-                             kp_score$kp_21_TPM >= 5,]
+DE_SvsC_up <- score[score$log2.Fold_change. > 1 & 
+                           score$q.value.Benjamini.et.al..1995. < 0.05 &
+                           score$S_TPM >= 5,]
+DE_SvsC_down <- score[score$log2.Fold_change. < -1 &
+                             score$q.value.Benjamini.et.al..1995. < 0.05 &
+                             score$C_TPM >= 5,]
+DE_SvsC_up <- DE_SvsC_up[,c(1,11,12,4,13,7,8,10)]
+DE_SvsC_down <- DE_SvsC_down[,c(1,11,12,4,13,7,8,10)]
+DE_SvsC_total <- score[,c(1,11,12,4,13,7,8,10)]
+write.table(DE_SvsC_down,file="DE_SvsC_down.xls",sep="\t",quote = FALSE,row.names=FALSE)
+write.table(DE_SvsC_up,file="DE_SvsC_up.xls",sep="\t",quote = FALSE,row.names=FALSE)
+write.table(DE_SvsC_total,file="DE_SvsC_total.xls",sep="\t",quote=FALSE,row.names=FALSE)
 
 ###Part 3
 ##topGO enrichment
 library(topGO)
-geneID2GO <- readMappings("HS11286_sangon_go.txt")
+geneID2GO <- readMappings(go_file)
 geneList_up <- as.factor(as.integer(rownames(cts) %in%
-                                             DE_28vs21_up$GeneNames))
+                                             DE_SvsC_up$GeneNames))
 names(geneList_up) <- rownames(cts)
 geneList_down <- as.factor(as.integer(rownames(cts) %in% 
-                                        DE_28vs21_down$GeneNames))
+                                        DE_SvsC_down$GeneNames))
 names(geneList_down) <- rownames(cts)  
 go_type <- c("MF","BP","CC")
 
-##28 vs 21 high 构建富集GOdata数据
+##up 构建富集GOdata数据
 up_go <- list()
 for(i in 1:length(go_type)){
   type=go_type[i]
@@ -176,12 +195,12 @@ for(i in 1:length(up_go)){
   up_go_results[[i]] <- result
 }
 
-##28 vs 21 down 构建GOdata数据
+##down 构建GOdata数据
 down_go <- list()
 for(i in 1:length(go_type)){
   type=go_type[i]
   godata <- new("topGOdata",ontology=type,allGenes=geneList_down,
-                description=paste("GOdata_28vs21_l",type,sep="\t"),annot=annFUN.gene2GO,
+                description=paste("GOdata_SvsC_down",type,sep="\t"),annot=annFUN.gene2GO,
                 gene2GO=geneID2GO,nodeSize=1)
   ##renew the genelist
   .geneList_down <- as.factor(as.integer(genes(godata) %in% sigGenes(godata)))
@@ -225,7 +244,7 @@ dir.create("./GO_enrichment_results")
 for(i in 1:3){
   tmp=up_go_results_table[[i]]
   ##命名图片名称
-  name=paste0("Kp_28vs21_Up","_",go_type[i],"_","Enrichment_Map")
+  name=paste0("Up_",go_type[i],"_Enrichment_Map")
   tmp$Annot_comb <- paste(tmp$GO.ID,tmp$Term,sep=" : ")
   tmp$qvalue <- as.numeric(tmp$qvalue)
   tmp$Significant <- as.numeric(tmp$Significant)
@@ -234,17 +253,17 @@ for(i in 1:3){
     scale_color_gradient(low="red",high="green")+scale_x_reverse()+
     labs(color="Classic Fisher Qvalue",size="Significant Count",x="Classic Fisher Qvalue",
          y="GO Terms",title=name)+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
-  ggsave(paste0("./GO_enrichment_results/",name,".pdf"),plot=p,width=25,height=15,units = "cm")
+  ggsave(paste0("./GO_enrichment_results/","SvsC_",name,".pdf"),plot=p,width=25,height=15,units = "cm")
   printGraph(up_go[[i]],up_go_results[[i]],
                  firstSigNodes = 10,useInfo = "all",pdfSW=F,
-                 fn.prefix=paste0("./GO_enrichment_results/",name,"DAG"))
+                 fn.prefix=paste0("./GO_enrichment_results/","SvsC_",name,"_DAG"))
   write.table(up_go_results_gentable[[i]],file=paste0(
-    "./GO_enrichment_results/",name,".xls"),sep="\t",quote=F,row.names = F)
+    "./GO_enrichment_results/","SvsC_",name,".xls"),sep="\t",quote=F,row.names = F)
 } 
 
 for(i in 1:3){
   tmp=down_go_results_table[[i]]
-  name=paste0("Kp_28vs21_Down","_",go_type[i],"_","Enrichment_Map")
+  name=paste0("Down_",go_type[i],"_","Enrichment_Map")
   tmp$Annot_comb <- paste(tmp$GO.ID,tmp$Term,sep=" : ")
   tmp$qvalue <- as.numeric(tmp$qvalue)
   tmp$Significant <- as.numeric(tmp$Significant)
@@ -253,12 +272,12 @@ for(i in 1:3){
     scale_color_gradient(low="red",high="green")+scale_x_reverse()+
     labs(color="Classic Fisher Qvalue",size="Significant Count",x="Classic Fisher Qvalue",
          y="GO Terms",title=name)+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
-  ggsave(paste0("./GO_enrichment_results/",name,".pdf"),plot=p,width=25,height=15,units = "cm")
+  ggsave(paste0("./GO_enrichment_results/","SvsC_",name,".pdf"),plot=p,width=25,height=15,units = "cm")
   printGraph(down_go[[i]],down_go_results[[i]],
              firstSigNodes = 10,useInfo = "all",pdfSW=F,
-             fn.prefix=paste0("./GO_enrichment_results/",name,"DAG"))
+             fn.prefix=paste0("./GO_enrichment_results/","SvsC_",name,"_DAG"))
   write.table(down_go_results_gentable[[i]],file=paste0(
-    "./GO_enrichment_results/",name,".xls"),sep="\t",quote=F,row.names = F)
+    "./GO_enrichment_results/","SvsC_",name,".xls"),sep="\t",quote=F,row.names = F)
 } 
 
 ##绘制netwrok和heatmap图
@@ -311,14 +330,14 @@ for(n in 1:3){
   V(net)$label.dist <- 0.5
   E(net)$width <- d$count*0.15
   
-  #pdf(paste0("./GO_enrichment_results/","28vs21_up_",go_type[n],"_star_network.pdf"))
+  #pdf(paste0("./GO_enrichment_results/","SvsC_up_",go_type[n],"_star_network.pdf"))
   #plot(net,layout=layout_as_star,main=paste0(
-  #  "28vs21_up_",go_type[n],"_star_network"))
+  #  "SvsC_up_",go_type[n],"_star_network"))
   #dev.off()
   
-  pdf(paste0("./GO_enrichment_results/","28vs21_up_",go_type[n],"_network.pdf"))
+  pdf(paste0("./GO_enrichment_results/","SvsC_Up_",go_type[n],"_network.pdf"))
   plot(net,layout=layout_nicely,main=paste0(
-    "28vs21_up_",go_type[n],"_network"))
+    "Up_",go_type[n],"_network"))
   image.plot(legend.only = TRUE,zlim=range(rescale(-log10(vertices$qvalue))),
              col=rbPal(100)[cut(seq(0,1,by=0.001),breaks=100)],
              horizontal = TRUE,legend.shrink=0.2,legend.width = 1,
@@ -370,14 +389,14 @@ for(n in 1:3){
   V(net)$label.dist <- 0.5
   E(net)$width <- d$count*0.15
   
-  #pdf(paste0("./GO_enrichment_results/","28vs21_down_",go_type[n],"_star_network.pdf"))
+  #pdf(paste0("./GO_enrichment_results/","SvsC_down_",go_type[n],"_star_network.pdf"))
   #plot(net,layout=layout_as_star,main=paste0(
-  #  "28vs21_down_",go_type[n],"_star_network"))
+  #  "SvsC_down_",go_type[n],"_star_network"))
   #dev.off()
   
-  pdf(paste0("./GO_enrichment_results/","28vs21_down_",go_type[n],"_network.pdf"))
+  pdf(paste0("./GO_enrichment_results/","SvsC_Down_",go_type[n],"_network.pdf"))
   plot(net,layout=layout_nicely,main=paste0(
-    "28vs21_down_",go_type[n],"_network"))
+    "Down_",go_type[n],"_network"))
   image.plot(legend.only = TRUE,zlim=range(rescale(-log10(vertices$qvalue))),
              col=rbPal(100)[cut(seq(0,1,by=0.001),breaks=100)],
              horizontal = TRUE,legend.shrink=0.2,legend.width = 1,
@@ -429,12 +448,13 @@ for(m in 1:3){
     scale_x_continuous(breaks=seq(1,length(genes_up)),labels=genes_up,expand = c(0,0))+
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Up_",go_type[m],"_by_Name_heapmap.pdf"),
+    labs(title=paste0("Up_",go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
+  ggsave(paste0("./GO_enrichment_results/","SvsC_Up_",go_type[m],"_by_Name_Heatmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
 
 ##up heatmap of GO terms with genes sorted by fold
+##modify the input DE object manually
 for(m in 1:3){
   tmp <- data.frame()
   genes_up <- vector()
@@ -444,7 +464,7 @@ for(m in 1:3){
     genes_up <- append(genes_up, unlist(strsplit(tmp[i,]$Sig_Genes,",")))
   }
   genes_up <- sort(unique(genes_up))
-  genes_up <- genes_up[order(DE_28vs21_up[genes_up,"log2.Fold_change."],
+  genes_up <- genes_up[order(DE_SvsC_up[genes_up,"log2.Fold_change."],
                              decreasing = TRUE)]
   
   Data <- data.frame(matrix(1:length(genes_up),nrow=1))
@@ -478,8 +498,8 @@ for(m in 1:3){
     scale_x_continuous(breaks=seq(1,length(genes_up)),labels=genes_up,expand = c(0,0))+
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Up_",go_type[m],"_by_Fold_heapmap.pdf"),
+    labs(title=paste0("Up_",go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
+  ggsave(paste0("./GO_enrichment_results/","SvsC_Up_",go_type[m],"_by_Fold_Heatmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
 
@@ -524,12 +544,13 @@ for(m in 1:3){
     scale_x_continuous(breaks=seq(1,length(genes_down)),labels=genes_down,expand = c(0,0))+
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Down_",go_type[m],"_by_Name_heapmap.pdf"),
+    labs(title=paste0("Down_",go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
+  ggsave(paste0("./GO_enrichment_results/","SvsC_Down_",go_type[m],"_by_Name_Heatmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
 
 ##down heatmap of GO terms with genes by fold
+##modify the input DE object manually
 for(m in 1:3){
   tmp <- data.frame()
   genes_down <- vector()
@@ -539,7 +560,7 @@ for(m in 1:3){
     genes_down <- append(genes_down, unlist(strsplit(tmp[i,]$Sig_Genes,",")))
   }
   genes_down <- sort(unique(genes_down))
-  genes_down <- genes_down[order(DE_28vs21_down[genes_down,"log2.Fold_change."])]
+  genes_down <- genes_down[order(DE_SvsC_down[genes_down,"log2.Fold_change."])]
   
   Data <- data.frame(matrix(1:length(genes_down),nrow=1))
   for(j in 1:nrow(tmp)){
@@ -571,8 +592,8 @@ for(m in 1:3){
     scale_x_continuous(breaks=seq(1,length(genes_down)),labels=genes_down,expand = c(0,0))+
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","Kp_28vs21_Down_",go_type[m],"_by_Fold_heapmap.pdf"),
+    labs(title=paste0("Down_",go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
+  ggsave(paste0("./GO_enrichment_results/","SvsC_Down_",go_type[m],"_by_Fold_Heatmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
 
@@ -587,26 +608,26 @@ library(enrichplot)
 ##                                      ignore.case = T)
 ##kpm
 ##KEGG Module是人工审核定义的功能单元，在一些情况下，KEGG Module具有明确直接的解释
-kegg_28vs21_up <- enrichMKEGG(gene=DE_28vs21_up$GeneNames,organism = "kpm",
+kegg_SvsC_up <- enrichMKEGG(gene=DE_SvsC_up$GeneNames,organism = "kpm",
                             pvalueCutoff = 1,minGSSize= 1,qvalueCutoff = 1)
-kegg_28vs21_down <- enrichMKEGG(gene=DE_28vs21_down$GeneNames,organism = "kpm",
+kegg_SvsC_down <- enrichMKEGG(gene=DE_SvsC_down$GeneNames,organism = "kpm",
                              pvalueCutoff = 1,minGSSize = 1,qvalueCutoff = 1)
 
 ##dotplot pic / 
-kegg_28vs21_up <- as.data.frame(kegg_28vs21_up)
-kegg_28vs21_down <- as.data.frame(kegg_28vs21_down)
-kegg_28vs21_up$Terms <- paste0(kegg_28vs21_up$ID,":",kegg_28vs21_up$Description)
-kegg_28vs21_down$Terms <- paste0(kegg_28vs21_down$ID,":",kegg_28vs21_down$Description)
-kegg_28vs21_results <- list(kegg_28vs21_up,kegg_28vs21_down)
-name_kegg <- c("KEGG_28vs21_Up","KEGG_28vs21_Down")
+kegg_SvsC_up <- as.data.frame(kegg_SvsC_up)
+kegg_SvsC_down <- as.data.frame(kegg_SvsC_down)
+kegg_SvsC_up$Terms <- paste0(kegg_SvsC_up$ID,":",kegg_SvsC_up$Description)
+kegg_SvsC_down$Terms <- paste0(kegg_SvsC_down$ID,":",kegg_SvsC_down$Description)
+kegg_SvsC_results <- list(kegg_SvsC_up,kegg_SvsC_down)
+name_kegg <- c("KEGG_SvsC_Up","KEGG_SvsC_Down")
 
 for(i in 1:2){
   tmp <- data.frame()
   name <- c()
-  if(nrow(kegg_28vs21_results[[i]])>30){
-    tmp <- kegg_28vs21_results[[i]][1:30,]
+  if(nrow(kegg_SvsC_results[[i]])>30){
+    tmp <- kegg_SvsC_results[[i]][1:30,]
     }else{
-      tmp <- kegg_28vs21_results[[i]]
+      tmp <- kegg_SvsC_results[[i]]
     }
   name <- name_kegg[i]
   tmp$p.adjust <- as.numeric(tmp$p.adjust)
@@ -624,10 +645,10 @@ for(m in 1:2){
   tmp <- data.frame()
   genes <- vector()
   Data <- data.frame()
-  if(nrow(kegg_28vs21_results[[m]])>30){
-    tmp <- kegg_28vs21_results[[m]][1:30,]
+  if(nrow(kegg_SvsC_results[[m]])>30){
+    tmp <- kegg_SvsC_results[[m]][1:30,]
   }else{
-    tmp <- kegg_28vs21_results[[m]]
+    tmp <- kegg_SvsC_results[[m]]
   }
   
   for(i in 1:nrow(tmp)){
@@ -675,10 +696,10 @@ for(m in 1:2){
   tmp <- data.frame()
   genes <- vector()
   Data <- data.frame()
-  if(nrow(kegg_28vs21_results[[m]])>30){
-    tmp <- kegg_28vs21_results[[m]][1:30,]
+  if(nrow(kegg_SvsC_results[[m]])>30){
+    tmp <- kegg_SvsC_results[[m]][1:30,]
   }else{
-    tmp <- kegg_28vs21_results[[m]]
+    tmp <- kegg_SvsC_results[[m]]
   }
   
   for(i in 1:nrow(tmp)){
@@ -687,10 +708,10 @@ for(m in 1:2){
   
   genes <- sort(unique(genes))
   if(m==1){
-    genes <- genes[order(DE_28vs21_up[genes,"log2.Fold_change."],
+    genes <- genes[order(DE_SvsC_up[genes,"log2.Fold_change."],
                             decreasing = TRUE)]
   }else{
-    genes <- genes[order(DE_28vs21_up[genes,"log2.Fold_change."])]
+    genes <- genes[order(DE_SvsC_up[genes,"log2.Fold_change."])]
   }
   
   Data <- data.frame(matrix(1:length(genes),nrow=1))

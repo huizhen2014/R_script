@@ -26,10 +26,10 @@ Results <- list()
 for(sample in c("PAO1","Y89","Y71","Y82","Y31")){
   tmp <- c()
   tmp <- paste0(sample,"_sorted.bam")
-  Results[[sample]] <- featureCounts(tmp,annot.ext="GCF_000006765.1_ASM676v1_genomic.gtf",
-                                     isGTFAnnotationFile = TRUE,GTF.featureType = "gene",
-                                     GTF.attrType = "gene_id",isPairedEnd = FALSE,ignoreDup = FALSE,
-                                     primaryOnlyt=TRUE,nthreads = 4)
+  Results[[sample]] <- featureCounts("LAC_4_sangon_mapped_sorted.bam",annot.ext = "LAC_4.gtf",
+                                     isGTFAnnotationFile = TRUE,GTF.featureType = "transcript",
+                                     GTF.attrType = "locus_tag",isPairedEnd = TRUE,allowMultiOverlap=TRUE,
+                                     primaryOnly=TRUE,strandSpecific=0,nthreads=4)
 }
 ##paired-end reads featureCounts
 #sample <- featureCounts("sample.bam",annot.ext = "HS11286.gtf",
