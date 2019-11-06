@@ -22,24 +22,28 @@
 ####featureCounts ignoreDup=F,primaryOnly=TRUE
 ##featureCounts
 library(Rsubread)
+samples <- c("KP_28","KP_1689_5","KP_21","KP_3176_1")
+gtf_file <- "HS11286.gtf"
+featuretype <- "transcript"
+attrtype <- "locus_tag"
+anno_file <- "HS11286_annotation_extraction.txt"
+go_file <- "HS11286_sangon_go.txt"
+output <- "KP_28s_vs_21s"
+
 Results <- list()
-for(sample in c("PAO1","Y89","Y71","Y82","Y31")){
+for(sample in samples){
   tmp <- c()
-  tmp <- paste0(sample,"_sorted.bam")
-  Results[[sample]] <- featureCounts("LAC_4_sangon_mapped_sorted.bam",annot.ext = "LAC_4.gtf",
-                                     isGTFAnnotationFile = TRUE,GTF.featureType = "transcript",
-                                     GTF.attrType = "locus_tag",isPairedEnd = TRUE,allowMultiOverlap=TRUE,
-                                     primaryOnly=TRUE,strandSpecific=0,nthreads=4)
+  tmp <- paste0(sample,"_sangon_mapped_sorted.bam")
+  Results[[sample]] <- featureCounts(tmp,annot.ext = gtf_file,isGTFAnnotationFile = TRUE,
+                                     GTF.featureType = featuretype,
+                                     GTF.attrType = attrtype,isPairedEnd = TRUE,
+                                     allowMultiOverlap=TRUE,primaryOnly=TRUE,
+                                     strandSpecific=2,nthreads=4)
 }
-##paired-end reads featureCounts
-#sample <- featureCounts("sample.bam",annot.ext = "HS11286.gtf",
-#                        isGTFAnnotationFile = TRUE,GTF.featureType = "transcript",
-#                        GTF.attrType = "Name",isPairedEnd = TRUE,ignoreDup=FALSE,
-#                        primaryOnly=TRUE,nthreads=4)
 
 ###collect counts
 fc_counts <- list()
-for(sample in c("PAO1","Y89","Y71","Y82","Y31")){
+for(sample in samples){
   tmp <- data.frame()
   fc <- list()
   fc <- Results[[sample]]
@@ -58,20 +62,16 @@ countData <- sapply(fc_counts,function(x)x$Count)
 rownames(countData) <- fc_counts[[1]]$Gene_ID
 colData <- matrix(666,nrow=length(fc_counts))
 rownames(colData) <- colnames(countData)
-colData[,1] <- c("AS","MDR","MDR","MDR","AS")
+colData[,1] <- c(rep("28s",2),rep("21s",2)) ##根据实际修改
 colnames(colData) <- "condition"
 
 ##DESeq2差异分析
 library(DESeq2)
 dds <- DESeqDataSetFromMatrix(countData = countData,colData = colData,
                               design = ~ condition)
-##pre-filtering，过滤掉low count的genes(没有read或几乎没有read)
-##此过程非必要，后续会自动过滤，为实现普遍结论，而非个别差异，过滤read count
-##edgeR 建议5-10个方为表达
-dds <- dds[rowSums(counts(dds)>=5)==5,]
 
 ##设置factor levels
-dds$condition <- factor(dds$condition,levels=c("MDR","AS"))
+dds$condition <- factor(dds$condition,levels=c("28s","21s"))
 ##dds$condition <- relevel(dds$condition,ref="MDR")
 ##dds$condition <- droplevels(dds$level)
 
@@ -82,34 +82,50 @@ dds$condition <- factor(dds$condition,levels=c("MDR","AS"))
 ##4, results函数生成log2倍数改变及对应p值
 dds <- DESeq(dds)
 
-##collection and print to file
-##因为重名，所有.1后缀为对应的TPM值,.2后缀为sizeFactor矫正后counts
-#Total_counts <- data.frame(row.names=rownames(fc_counts[[1]]),
-#                           Gene_ID=fc_counts[[1]]$Gene_ID,
-#                           Pos=fc_counts[[1]]$Pos,
-#                           Length=fc_counts[[1]]$Length,
-#                           sapply(fc_counts,function(x)x$Count),
-#                           sapply(fc_counts,function(x)x$TPM),
-#                           counts(dds,normalized=TRUE)
-#)
-#write.table(Total_counts,file="All_samples_count_statistic.txt",sep="\t",quote=F)
-#write.csv(Total_counts,file="All_samples_count_statistic.csv")
-
 ##默认为last level vs. ref level
 ##resultsNames(dds) 查看coefficient名称可知
 ##这里通过contrast指定 MDR/AS，指定adjusted p-value cutoff (FDR)阈值为0.05
-res <- results(dds,contrast = c("condition","MDR","AS"),alpha=0.05)
+res <- results(dds,contrast=c("condition","28s","21s"))
+#res <- results(dds,contrast = c("condition","28s","21s"),alpha=0.05)
 ##removeResults函数返回至DESeqDataSet对象
+
+##collection and print to file
+##因为重名，所有.1后缀为对应的TPM值,.2后缀为sizeFactor矫正后counts，
+##然后通过sub替换对应名称
+library(xlsx)
+res_data_frame <- NULL
+Total_counts <- NULL
+res_data_frame <- as.data.frame(res)
+Anno <- read.delim(anno_file,sep="\t",header=FALSE,
+                   row.names = 3)
+Total_counts <- data.frame(row.names=rownames(fc_counts[[1]]),
+                           Gene_ID=fc_counts[[1]]$Gene_ID,
+                           Pos=fc_counts[[1]]$Pos,
+                           Length=fc_counts[[1]]$Length,
+                           sapply(fc_counts,function(x)x$Count),
+                           sapply(fc_counts,function(x)x$TPM),
+                           counts(dds,normalized=TRUE)
+)
+colnames(Total_counts) <- sub("(*\\.)1","\\1TPM",colnames(Total_counts))
+colnames(Total_counts) <- sub("(*\\.)2","\\1Nor_count",colnames(Total_counts))
+Total_counts <- cbind(Total_counts,res_data_frame[rownames(Total_counts),])
+Total_counts$Anno_location <- Anno[rownames(Total_counts),]$V2
+Total_counts$Anno_protein <- Anno[rownames(Total_counts),]$V4
+Total_counts$Anno_product <- Anno[rownames(Total_counts),]$V5
+write.table(Total_counts,file="All_samples_count_statistic.txt",sep="\t",quote=FALSE)
+write.xlsx(Total_counts,file = "All_samples_count_statistic.xlsx",row.names=FALSE)
 
 ##结果根据padj排序
 resOrdered <- res[order(res$padj),]
+##summary(resOrdered)
 
 ##lfcshrink, 仅为绘图和排序使用，最终差异结果和results无异
-#res_shrunken_normal <- lfcShrink(dds,contrast = c("condition","MDR","AS"),
-#res=res,type="normal",alpha=0.05)
+res_shrunken_normal <- lfcShrink(dds,contrast = c("condition","28s","21s"),
+res=res,type="normal",alpha=0.05)
 
 ##绘制MA-plot
-plotMA(res,main="DESeq2",ylim=c(-2,2))
+#plotMA(res,main="DESeq2",ylim=c(-2,2))
+plotMA(res_shrunken_normal,main="DESeq2",ylim=c(-2,2))
 ##idx <- identity(res$baseMean,res$log2FoldChange)
 ##rownames(res)[idex] 交互式获得对应点坐标信息
 
@@ -119,7 +135,7 @@ plotCounts(dds,gene=which.min(res$padj),intgroup = "condition")
 ##查看rsults返回结果描述
 ##p-values == NA
 ##1，一行中，所有样本counts都为0,baseMean为0，其他都为NA
-##2，若一行中包含极端count至，p和adjusted p都为NA
+##2，若一行中包含极端count至，prl和adjusted p都为NA
 ##outlier counts的检出是根据Cook's distance
 ##3，若一行由于低于mean normalized count
 ##而被automatic independent filtering, 那么只有adjusted p为NA
@@ -129,11 +145,58 @@ plotCounts(dds,gene=which.min(res$padj),intgroup = "condition")
 ##coef(dds)
 ##
 
-##整理结果，绘制PCA/heatmap,volcano,DEgenes
+##为检测差异性表达，对原始counts数据使用离散分布分析。但是为了
+##下游其他类型分析，例如可视化和聚类，counts数据对转换会更有用
+##rlog/varianceStabilizingformation，都有参数blind，默认为TRUE,
+##当期待许多或大部分基因会根据实验设计而出现大大counts差异时，
+##此时blind dispersion estimation会导致偏大的离散度评估。通过设置
+##blind=FALSE，将已得到dispesion用于数据转弯，若不存在，函数将根据
+##design fromula重新评估
+rld <- rlog(dds,blind=FALSE)
+##绘制数据转换和变异关系图(row stand deviations vs row means, 
+##both are transfered)
+library(vsn)
+notAllZero <- (rowSums(counts(dds))>0)
+meanSdPlot(assay(rld[notAllZero,]))
+dev.off()
 
+##Heatmap ,使用颜色展示矩阵数据的个体数值，这里的展示是经过转化后的
+##数据的热图
+library(pheatmap)
+select <- order(rowMeans(counts(dds,normalized=TRUE)),decreasing = TRUE)[1:20]
+nt <- normTransform(dds) ##默认为logs(x+1),x为sizefactor处理后的counts
+log2.norm.counts <- assay(nt)[select,] ##选择前20个基因
+df <- as.data.frame(colData(dds)[,c("condition")])
+pheatmap(log2.norm.counts,cluster_rows = FALSE,show_rownames = FALSE,
+         cluster_cols = FALSE,annotation_col = df)
+pheatmap(assay(rld)[select,],cluster_rows = FALSE,show_rownames = FALSE,
+         cluster_cols = FALSE, annotation_col = df)
+dev.off()
 
+##绘制样本间的距离热图
+##dist(x, method="euclidean",diag=FALSE,upper=FALSE,p=2)默认参数
+sampleDists <- dist(t(assay(rld))) 
+##直接使用plot绘制距离树状图
+plot(hclust(dist(t(assay(rld)))))
 
+library(RColorBrewer)
+sampleDistMatrix <- as.matrix(sampleDists)
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette(rev(brewer.pal(9,"Blues")))(255)
+pheatmap(sampleDistMatrix,clustering_distance_cols = sampleDists,
+         clustering_distance_rows = sampleDists,col=colors)
+dev.off()
 
+##绘制PCA，距离相关矩阵就是样本的PCA图
+##plotPCA(rld,intgroup="condition")
+##使用gglot2绘制
+library(ggplot2)
+library(ggrepel)
+data <- plotPCA(rld,intgroup="condition",returnData=TRUE)
+percentVar <- round(100 * attr(data,"percentVar"))
+ggplot(data,aes(PC1,PC2,color=condition,shape=condition))+
+  geom_point(size=3) + geom_text_repel(aes(label=name))
+dev.off()
 
 ###Part 3
 ##topGO enrichment

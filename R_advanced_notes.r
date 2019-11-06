@@ -414,7 +414,8 @@ print(mod)
 ##参数2: method dispatch/or it will dispath on the first argument
 ##to the function
 f <- function(x)UseMethod("f") ##创建新的generics
-f.a <- function(x)"Class a" ##增加方法/function
+f.a <- function(x)"Class a" ##增加方法/function,类似当当标签为a时的
+##函数
 a <- structure(list(),class="a") ##创建对象a,定义类 class=a
 class(a)
 f(a) ##返回f.a， dispatch 
@@ -435,12 +436,27 @@ f(structure(list(),class="a"))
 f(structure(list(),class=c("b","a")))
 f(structure(list(),class="c"))
 
+##S4 works in a similar way to S3, but it adds formality 
+##and rigour. Methods still belong to functions, not classes,
+##but: 
+##1. classes hava a formal definition, describing their fields
+##and inheritance structure(parent classes)
+##2. Method dispath can be based on multiple arguments to 
+##generic function not just one
+##There is a special operator, @ , for extracting fileds(aka slots)
+##out of an S4 object.
 
-
-
-
-
-
+##There aren't any S4 classes in the commonly used base packages(
+##stats,graphics,utils,datasets,and base)
+##Create an S4 object from the built-in stats packages
+library(stats4)
+y <- c(26,17,13,12,20,5,9,8,5,4,8)
+nLL <- function(lambda) - sum(dpois(y,lambda,log=TRUE))
+fit <- mle(nLL, start=list(lambda=5),nobs=length(y))
+isS4(fit)
+otype(fit)
+isS4(nobs)
+ftype(nobs)
 
 
 
