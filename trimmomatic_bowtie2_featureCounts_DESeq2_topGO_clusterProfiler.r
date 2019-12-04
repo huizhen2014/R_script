@@ -22,13 +22,13 @@
 ####featureCounts ignoreDup=F,primaryOnly=TRUE
 ##featureCounts
 library(Rsubread)
-samples <- c("KP_28","KP_1689_5","KP_21","KP_3176_1")
+samples <- c("KP_28","KP_1689_5","KP_2410_5","KP_21","KP_3176_1","KP_3178_2")
 gtf_file <- "HS11286.gtf"
 featuretype <- "transcript"
 attrtype <- "locus_tag"
 anno_file <- "HS11286_annotation_extraction.txt"
 go_file <- "HS11286_sangon_go.txt"
-output <- "KP_28s_vs_21s"
+output <- "KP28s_vs_KP21s"
 
 Results <- list()
 for(sample in samples){
@@ -62,7 +62,7 @@ countData <- sapply(fc_counts,function(x)x$Count)
 rownames(countData) <- fc_counts[[1]]$Gene_ID
 colData <- matrix(666,nrow=length(fc_counts))
 rownames(colData) <- colnames(countData)
-colData[,1] <- c(rep("28s",2),rep("21s",2)) ##根据实际修改
+colData[,1] <- c(rep("28s",3),rep("21s",3)) ##根据实际修改
 colnames(colData) <- "condition"
 
 ##DESeq2差异分析
@@ -103,19 +103,19 @@ Total_counts <- data.frame(row.names=rownames(fc_counts[[1]]),
                            Pos=fc_counts[[1]]$Pos,
                            Length=fc_counts[[1]]$Length,
                            sapply(fc_counts,function(x)x$Count),
-                           sapply(fc_counts,function(x)x$TPM),
-                           counts(dds,normalized=TRUE)
+                           counts(dds,normalized=TRUE),
+                           sapply(fc_counts,function(x)x$TPM)
 )
-colnames(Total_counts) <- sub("(*\\.)1","\\1TPM",colnames(Total_counts))
-colnames(Total_counts) <- sub("(*\\.)2","\\1Nor_count",colnames(Total_counts))
+colnames(Total_counts) <- sub("(*)\\.1","\\1_Nor_count",colnames(Total_counts))
+colnames(Total_counts) <- sub("(*)\\.2","\\1_TPM",colnames(Total_counts))
 Total_counts <- cbind(Total_counts,res_data_frame[rownames(Total_counts),])
 Total_counts$Anno_location <- Anno[rownames(Total_counts),]$V2
 Total_counts$Anno_protein <- Anno[rownames(Total_counts),]$V4
 Total_counts$Anno_product <- Anno[rownames(Total_counts),]$V5
-write.table(Total_counts,file="All_samples_count_statistic.txt",sep="\t",quote=FALSE)
-write.xlsx(Total_counts,file = "All_samples_count_statistic.xlsx",row.names=FALSE)
+write.table(Total_counts,file=paste0(output,"_DE_total.txt"),sep="\t",quote=FALSE)
+write.xlsx(Total_counts,file =paste0(output,"_DE_total.xlsx"),row.names=FALSE)
 
-##结果根据padj排序
+res##结果根据padj排序
 resOrdered <- res[order(res$padj),]
 ##summary(resOrdered)
 
@@ -135,7 +135,7 @@ plotCounts(dds,gene=which.min(res$padj),intgroup = "condition")
 ##查看rsults返回结果描述
 ##p-values == NA
 ##1，一行中，所有样本counts都为0,baseMean为0，其他都为NA
-##2，若一行中包含极端count至，prl和adjusted p都为NA
+##2，若一行中包含极端count值，prl和adjusted p都为NA
 ##outlier counts的检出是根据Cook's distance
 ##3，若一行由于低于mean normalized count
 ##而被automatic independent filtering, 那么只有adjusted p为NA
@@ -196,6 +196,7 @@ data <- plotPCA(rld,intgroup="condition",returnData=TRUE)
 percentVar <- round(100 * attr(data,"percentVar"))
 ggplot(data,aes(PC1,PC2,color=condition,shape=condition))+
   geom_point(size=3) + geom_text_repel(aes(label=name))
+ggsave("KP28s_vs_KP21s_all_samples_PCA.pdf",width=9.5,height=7)
 dev.off()
 
 ###Part 3

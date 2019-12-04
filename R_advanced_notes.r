@@ -450,6 +450,7 @@ f(structure(list(),class="c"))
 ##stats,graphics,utils,datasets,and base)
 ##Create an S4 object from the built-in stats packages
 library(stats4)
+library(pryr)
 y <- c(26,17,13,12,20,5,9,8,5,4,8)
 nLL <- function(lambda) - sum(dpois(y,lambda,log=TRUE))
 fit <- mle(nLL, start=list(lambda=5),nobs=length(y))
@@ -458,5 +459,270 @@ otype(fit)
 isS4(nobs)
 ftype(nobs)
 
+foo <- structure(list(),class="foo")
+foo <- list()
+class(foo) <- "foo"
+inherits(foo,"foo")
+
+f <- function(x)UseMethod("f")
+f.a <- function(x)"Class a"
+a <- structure(list(),class="a")
+class(a)
+f(a)
+
+mean.a <- function(x)"a"
+mean(a)
+
+
+f <- function(x)UseMethod("f")
+f.a <- function(x)"Class a"
+f.default <- function(x)"Unknown class"
+
+f(structure(list(),class="a"))
+f(structure(list(),class=c("b","a")))
+f(structure(list(),class="c"))
+  
+setClass("Person",
+         slots=list(name="character",age="numeric"))
+setClass("Employee",
+         slots=list(boss="Person"),contains="Person")
+alice <- new('Person',name="Alice",age=40)
+john <- new("Employee",name="John",age=20,boss=alice)
+
+alice@age
+slot(john,"boss")
+
+setClass("RangedNumeric",
+         contains="numeric",
+         slots=list(min="numeric",max="numeric"))
+rn <- new("RangedNumeric",1:10,min=1,max=10)
+rn@min
+rn@.Data
+
+setGeneric("union")
+setMethod("union",c(x="data.frame",y="data.frame"),
+          function(x,y){
+            unique(rind(x,y))
+          })
+
+setGeneric("myGeneric",function(x){
+  standardGeneric("myGeneric")
+})
+
+selectMethod("nobs",list("mle"))
+pryr::method_from_call(nobs(fit))
+
+##Environment
+e <- new.env()
+parent.env(e)
+identical(e, globalenv())
+ls(e)
+
+ls(e)
+e$a <- 1
+ls(e)
+e$a
+e$.b <- 2
+ls(e)
+ls(e, all=TRUE)
+as.list(e)
+str(as.list(e,all=TRUE))
+
+e$b <-2 
+e$b
+e[["b"]]
+get("b",e)
+
+x <- 1
+e1 <- new.env()
+get("x",e1)
+
+e2 <- new.env(parent=emptyenv())
+get("x",e2)
+
+exists("b",e)
+exists("b",e,inherits = FALSE)
+exists("b",e,inherits = FALSE)
+
+globalenv()
+baseenv()
+emptyenv()
+
+search()
+
+as.environment("package:stats")
+ls()
+
+library(pryr)
+where("where")
+where("mean")
+where("t.test")
+
+F <- function(env=parent.frame()){
+  if(identical(env,emptyenv())){
+    return(emptyenv())
+    }else{
+      tmp=1
+      }
+  if(tmp){
+    print(env)
+    F(env=parent.env(env))
+  }
+  }
+F()
+
+where("mean")
+W <- function(x){
+  tmp <- as.environment(where("x",env=parent.env(where("x"))))
+  cat(x,"\t")
+  tmp
+  
+}
+
+##3
+G <- function(name,env){
+  if(is.na(match(name,ls(env)))){
+    return("Break")
+  }else if(! is.na(match(name,ls(env)))){
+    if(! is.na(match(name,search()))){
+      print("good")
+      
+    }
+  }
+  }
+  
+  if(match(name,ls()) && !(match(name,fun))){
+    G(name,env=parent.env(env))
+  }else if(match(name,ls()) && match(name,fun)){
+    return(name,match(name,ls(),name,fun))
+  }
+
+  
+if( is.na(match("base",search())) ){
+  c <- ls(paste0("package",":","base"))
+  }
+
+library(pryr)
+y <- 1
+f <- function(x)x+y
+environment(f)
+where("f")
+environment(plot)
+environment(t.test)
+where("plot")
+
+environment("a")
+environment(x)
+
+plus <- function(x){
+  function(y)x+y
+}
+plus_one <- plus(1)
+plus_one(10)
+plus_two <- plus(2)
+plus_two(10)
+
+funenv <- function(f){
+  f <- match.fun(f)
+  environment(f)
+}
+
+f <- function(x)x+y
+environment(f)
+
+f <- function(){
+  x <- 10
+  function(){
+    x}
+}
+
+f2 <- function(){
+  x <- 10
+  function(){
+    def <- get("x",environment())
+    cll <- get("x",parent.frame())
+    list(defined=def,called=cll)
+    }
+}
+g2 <- f2()
+#x <- 20
+str(g2())
+
+plus <- function(x){
+  function(y)x+y
+}
+
+plus_one <- plus(1)
+plus_one(10)
+plus_two <- plus(2)
+plus_two(10)
+environment(plus)
+environment(plus_one)
+parent.env(environment(plus_one))
+
+f <- function(x)x+y
+environment(f) <- emptyenv()
+f(1)
+
+f <- function(){
+  list(
+    e <- environment(),
+    p <- parent.env(environment())
+  )
+}
+str(f())
+str(f())
+funenv("f")
+
+f <- function(){
+  x <- 10
+  function(){
+    x
+  }
+}
+g <- f()
+x <- 20
+g()
+
+##local
+df <- local({
+  x <- 1:10
+  y <- runif(10)
+  data.frame(x=x,y=y)
+})
+##equivalent to 
+df <- (function(){
+  x <- 1:10
+  y <- runif(10)
+  data.frame(x=x,y=y)
+})()
+
+a <- 10
+my_get <- NULL
+my_set <- NULL
+local({
+  a <- 1
+  my_get <<- function()a
+  my_set <<- function(value)a <<- value
+})
+my_get()
+my_set(13)
+my_get()
+
+##assignment
+`  ` <- "space"
+`a+b` <- 3
+`:)` <- "simle"
+ls()
+
+##constants
+x <- 10
+lockBinding(as.name("x"),globalenv())
+x <- 15
+rm(x)
+
+x %<c-% 20
+x <- 30
+rm(x)
 
 

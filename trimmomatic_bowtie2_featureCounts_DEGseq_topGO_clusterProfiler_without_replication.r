@@ -23,14 +23,14 @@
 ##featureCounts
 library(Rsubread)
 ##modify the input according to the reality, strandSpecific=2
-sample_s <- "LAC_4_trimmo_sangon_mapped_sorted.bam"
-sample_c <- "X43_trimmo_sangon_mapped_sorted.bam"
-gtf_file <- "LAC_4.gtf"
+sample_s <- "KP_28_sangon_mapped_sorted.bam"
+sample_c <- "KP_21_sangon_mapped_sorted.bam"
+gtf_file <- "HS11286.gtf"
 featuretype <- "transcript"
 attrtype <- "locus_tag"
-anno_file <- "LAC_4_annotation_extraction.txt"
-go_file <- "LAC_4_Sangon_go.txt"
-output <- "LAC_4_vs_X43"
+anno_file <- "HS11286_annotation_extraction.txt"
+go_file <- "HS11286_sangon_go.txt"
+output <- "KP28vsKP21"
 ##
 S_exp <- featureCounts(sample_s,annot.ext = gtf_file,
                            isGTFAnnotationFile = TRUE,GTF.featureType = featuretype,
@@ -53,6 +53,7 @@ fc_C <- data.frame(Gene_ID=rownames(C_exp$counts),Pos=paste0(
 
 ##选择不过滤，最后得出差异再过滤
 library(edgeR)
+library(xlsx)
 cts <- data.frame(S=fc_S$Count,C=fc_C[rownames(fc_S),]$Count,
                   row.names=rownames(fc_S))
 group=factor(c("S","C"),levels=c("S","C"))
@@ -98,8 +99,14 @@ Total_counts <- data.frame(row.names=rownames(fc_S),
                            Norm.Count_C=fc_C[rownames(fc_S),]$Norm.Count,
                            Anno=Anno[rownames(fc_S),]$V5
 )
-write.table(Total_counts,file="All_samples_count_statistic.xls",sep="\t",quote=FALSE,
-            row.names=FALSE)
+
+##手动修改样本名称或直接全部设置变量提前修改
+##手动修改样本名称或直接全部设置变量提前修改
+colnames(Total_counts) <- sub("(*\\_)S","\\1KP28",colnames(Total_counts))
+colnames(Total_counts) <- sub("(*\\_)C","\\1KP21",colnames(Total_counts))
+#write.table(Total_counts,file=paste0(output,"_count_statistic.txt"),sep="\t",quote=FALSE,
+#            row.names=FALSE)
+#write.xlsx(Total_counts,file =paste0(output,"_count_statistic.xlsx"),row.names=FALSE)
 
 ### cts count normalized by norm.factors and is used for DEGseq package analysis
 library(DEGseq)
@@ -123,22 +130,25 @@ score <- read.delim("./sangon_cts_norm_degseq_results/output_score.txt",
 rownames(score) <- score$GeneNames
 
 ##选择后过滤TMP>=5
-score$S_TPM <- fc_S[rownames(score),]$TPM
-score$C_TPM <- fc_C[rownames(score),]$TPM
-score$Anno <- Anno[rownames(score),]$V5
-##log2.Fold_change.
+score <- cbind(score,Total_counts[rownames(score),2:ncol(Total_counts)])
+
+##log2.Fold_change. 对应修改TPM名称
 DE_SvsC_up <- score[score$log2.Fold_change. > 1 & 
                            score$q.value.Benjamini.et.al..1995. < 0.05 &
-                           score$S_TPM >= 5,]
+                           score$TPM_KP28 >= 5,]
 DE_SvsC_down <- score[score$log2.Fold_change. < -1 &
                              score$q.value.Benjamini.et.al..1995. < 0.05 &
-                             score$C_TPM >= 5,]
-DE_SvsC_up <- DE_SvsC_up[,c(1,11,12,4,13,7,8,10)]
-DE_SvsC_down <- DE_SvsC_down[,c(1,11,12,4,13,7,8,10)]
-DE_SvsC_total <- score[,c(1,11,12,4,13,7,8,10)]
-write.table(DE_SvsC_down,file="DE_SvsC_down.xls",sep="\t",quote = FALSE,row.names=FALSE)
-write.table(DE_SvsC_up,file="DE_SvsC_up.xls",sep="\t",quote = FALSE,row.names=FALSE)
-write.table(DE_SvsC_total,file="DE_SvsC_total.xls",sep="\t",quote=FALSE,row.names=FALSE)
+                             score$TPM_KP21 >= 5,]
+
+DE_SvsC_up <- DE_SvsC_up[,c(1,11,12,13,14,21,22,19,20,4,7,8,10,23)]
+DE_SvsC_down <- DE_SvsC_down[,c(1,11,12,13,14,21,22,19,20,4,7,8,10,23)]
+DE_SvsC_total <- score[,c(1,11,12,13,14,21,22,19,20,4,7,8,10,23)]
+write.table(DE_SvsC_down,file=paste0(output,"_DE_Down.txt"),sep="\t",quote = FALSE,row.names=FALSE)
+write.table(DE_SvsC_up,file=paste0(output,"_DE_Up.txt"),sep="\t",quote = FALSE,row.names=FALSE)
+write.table(DE_SvsC_total,file=paste0(output,"_DE_Total.txt"),sep="\t",quote=FALSE,row.names=FALSE)
+write.xlsx(DE_SvsC_down,file=paste0(output,"_DE_Down.xlsx"),row.names=FALSE)
+write.xlsx(DE_SvsC_up,file=paste0(output,"_DE_Up.xlsx"),row.names=FALSE)
+write.xlsx(DE_SvsC_total,file=paste0(output,"_DE_Total.xlsx"),row.names=FALSE)
 
 ###Part 3
 ##topGO enrichment
@@ -253,12 +263,12 @@ for(i in 1:3){
     scale_color_gradient(low="red",high="green")+scale_x_reverse()+
     labs(color="Classic Fisher Qvalue",size="Significant Count",x="Classic Fisher Qvalue",
          y="GO Terms",title=name)+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
-  ggsave(paste0("./GO_enrichment_results/","SvsC_",name,".pdf"),plot=p,width=25,height=15,units = "cm")
+  ggsave(paste0("./GO_enrichment_results/",output,"_",name,".pdf"),plot=p,width=25,height=15,units = "cm")
   printGraph(up_go[[i]],up_go_results[[i]],
                  firstSigNodes = 10,useInfo = "all",pdfSW=F,
-                 fn.prefix=paste0("./GO_enrichment_results/","SvsC_",name,"_DAG"))
+                 fn.prefix=paste0("./GO_enrichment_results/",output,"_",name,"_DAG"))
   write.table(up_go_results_gentable[[i]],file=paste0(
-    "./GO_enrichment_results/","SvsC_",name,".xls"),sep="\t",quote=F,row.names = F)
+    "./GO_enrichment_results/",output,"_",name,".xls"),sep="\t",quote=F,row.names = F)
 } 
 
 for(i in 1:3){
@@ -272,12 +282,12 @@ for(i in 1:3){
     scale_color_gradient(low="red",high="green")+scale_x_reverse()+
     labs(color="Classic Fisher Qvalue",size="Significant Count",x="Classic Fisher Qvalue",
          y="GO Terms",title=name)+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
-  ggsave(paste0("./GO_enrichment_results/","SvsC_",name,".pdf"),plot=p,width=25,height=15,units = "cm")
+  ggsave(paste0("./GO_enrichment_results/",output,"_",name,".pdf"),plot=p,width=25,height=15,units = "cm")
   printGraph(down_go[[i]],down_go_results[[i]],
              firstSigNodes = 10,useInfo = "all",pdfSW=F,
-             fn.prefix=paste0("./GO_enrichment_results/","SvsC_",name,"_DAG"))
+             fn.prefix=paste0("./GO_enrichment_results/",output,"_",name,"_DAG"))
   write.table(down_go_results_gentable[[i]],file=paste0(
-    "./GO_enrichment_results/","SvsC_",name,".xls"),sep="\t",quote=F,row.names = F)
+    "./GO_enrichment_results/",output,"_",name,".xls"),sep="\t",quote=F,row.names = F)
 } 
 
 ##绘制netwrok和heatmap图
@@ -335,7 +345,7 @@ for(n in 1:3){
   #  "SvsC_up_",go_type[n],"_star_network"))
   #dev.off()
   
-  pdf(paste0("./GO_enrichment_results/","SvsC_Up_",go_type[n],"_network.pdf"))
+  pdf(paste0("./GO_enrichment_results/",output,"_Up_",go_type[n],"_network.pdf"))
   plot(net,layout=layout_nicely,main=paste0(
     "Up_",go_type[n],"_network"))
   image.plot(legend.only = TRUE,zlim=range(rescale(-log10(vertices$qvalue))),
@@ -394,7 +404,7 @@ for(n in 1:3){
   #  "SvsC_down_",go_type[n],"_star_network"))
   #dev.off()
   
-  pdf(paste0("./GO_enrichment_results/","SvsC_Down_",go_type[n],"_network.pdf"))
+  pdf(paste0("./GO_enrichment_results/",output,"_Down_",go_type[n],"_network.pdf"))
   plot(net,layout=layout_nicely,main=paste0(
     "Down_",go_type[n],"_network"))
   image.plot(legend.only = TRUE,zlim=range(rescale(-log10(vertices$qvalue))),
@@ -449,7 +459,7 @@ for(m in 1:3){
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
     labs(title=paste0("Up_",go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","SvsC_Up_",go_type[m],"_by_Name_Heatmap.pdf"),
+  ggsave(paste0("./GO_enrichment_results/",output,"_Up_",go_type[m],"_by_Name_Heatmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
 
@@ -499,7 +509,7 @@ for(m in 1:3){
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
     labs(title=paste0("Up_",go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","SvsC_Up_",go_type[m],"_by_Fold_Heatmap.pdf"),
+  ggsave(paste0("./GO_enrichment_results/",output,"_Up_",go_type[m],"_by_Fold_Heatmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
 
@@ -545,7 +555,7 @@ for(m in 1:3){
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
     labs(title=paste0("Down_",go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","SvsC_Down_",go_type[m],"_by_Name_Heatmap.pdf"),
+  ggsave(paste0("./GO_enrichment_results/",output,"_Down_",go_type[m],"_by_Name_Heatmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
 
@@ -593,7 +603,7 @@ for(m in 1:3){
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
     labs(title=paste0("Down_",go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="Qvalue")
-  ggsave(paste0("./GO_enrichment_results/","SvsC_Down_",go_type[m],"_by_Fold_Heatmap.pdf"),
+  ggsave(paste0("./GO_enrichment_results/",output,"_Down_",go_type[m],"_by_Fold_Heatmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
 
@@ -687,7 +697,7 @@ for(m in 1:2){
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
     labs(title=paste0(name_kegg[m],"_Heatmap"),y="KO Terms",x="DE Genes",fill="p.adjust")
-  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_by_Name_heapmap.pdf"),
+  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_by_Name_Heapmap.pdf"),
          plot=p,width = 28,height=18,units = "cm") 
 }
 
@@ -745,7 +755,7 @@ for(m in 1:2){
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
     labs(title=paste0(name_kegg[m],"_Heatmap"),y="KO Terms",x="DE Genes",fill="p.adjust")
-  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_by_Fold_heapmap.pdf"),
+  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_by_Fold_Heapmap.pdf"),
          plot=p,width = 28,height=18,units = "cm") 
 }
 
