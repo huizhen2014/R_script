@@ -725,4 +725,41 @@ x %<c-% 20
 x <- 30
 rm(x)
 
+##<<-
+x <- 0
+f <- function(){
+  g <- function(){
+    x <<-2
+  }
+x <-1
+g()
+x
+}
+f()
+##delayed binginds
+library(pryr)
+a %<d-% 1
+system.time(a)
+
+b %<d-% {Sys.sleep(1);1}
+system.time(b)
+
+##Active bindings
+x %<a-% runif(1)
+x
+x
+
+##Debuggings
+##debugging the sequence of calls
+f <- function(a)g(a)
+g <- function(b)h(b)
+h <- function(c)i(c)
+i <- function(d)"a" + d
+f(10)
+trackback()
+
+
+
+
+
 
