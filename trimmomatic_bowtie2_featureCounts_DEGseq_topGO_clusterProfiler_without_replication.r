@@ -29,7 +29,8 @@ gtf_file <- "HS11286.gtf"
 featuretype <- "transcript"
 attrtype <- "locus_tag"
 anno_file <- "HS11286_annotation_extraction.txt"
-go_file <- "HS11286_sangon_go.txt"
+#go_file <- "HS11286_sangon_go.txt"
+go_file <- "atcc13883_uniprot_go.txt"
 output <- "KP28vsKP21"
 ##
 S_exp <- featureCounts(sample_s,annot.ext = gtf_file,
@@ -154,6 +155,7 @@ write.xlsx(DE_SvsC_total,file=paste0(output,"_DE_Total.xlsx"),row.names=FALSE)
 ##topGO enrichment
 library(topGO)
 geneID2GO <- readMappings(go_file)
+geneID2GO_uniq <- sapply(geneID2GO,function(var)unique(var))
 geneList_up <- as.factor(as.integer(rownames(cts) %in%
                                              DE_SvsC_up$GeneNames))
 names(geneList_up) <- rownames(cts)
