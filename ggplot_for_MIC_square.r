@@ -28,8 +28,15 @@ ggplot(mic_e_melt,aes(x=Tigecycline,y=Compound,fill=Inhibition))+geom_tile()+
         axis.text.x=element_text(size=10,face="bold"),
         axis.title.x=element_text(size=15),
         axis.title.y=element_text(size=15))+
-  labs(x=expression("Tigecycline ("*mu*"g/ml)"),
-       y=expression("Compound ("*mu*"g/ml)"),fill="Inhibition(%)")
+  labs(x=expression("Vancomycin ("*mu*"g/ml)"),
+       y=expression("XT-1 ("*mu*"g/ml)"),fill="Inhibition(%)")
 
-#ggsave(p,file="no_1_mic_e.pdf",width=7,height=7)
+#ggsave("HQ_1_vancomycin_FICI.pdf",width=8,height=6.5)
 
+#pdf("CD102_5G_16_coumpunds_FICI_2.pdf",width=11,height=8.5)
+#grid.arrange(p16,p17,p18,p20,p22,p27,ncol=2)
+#dev.off()
+
+#pdf("CD102_5G_16_coumpunds_FICI_1.pdf",width=11,height=8.5)
+#grid.arrange(p1,p2,p5,p6,p7,p8,p10,p15,ncol=2)
+#dev.off()

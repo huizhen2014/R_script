@@ -24,11 +24,11 @@
 library(Rsubread)
 samples <- c("ab_3_cs_11","ab_4_cs_11","ab_1",
              "ab_2")
-gtf_file <- "ab0303_gff.gtf"
+gtf_file <- "ab030_gff.gtf"
 featuretype <- "transcript"
 attrtype <- "locus_tag"
-anno_file <- "ab0303_annotation_extraction.txt"
-go_file <- "ab0303_Sangon_go.txt"
+anno_file <- "ab030_annotation_extraction.txt"
+go_file <- "ab030_Sangon_go.txt"
 output <- "ab_cs_11_vs_ab_c"
 
 Results <- list()
@@ -113,8 +113,9 @@ colnames(Total_counts) <- sub("(*)\\.1","\\1_Nor_count",colnames(Total_counts))
 colnames(Total_counts) <- sub("(*)\\.2","\\1_TPM",colnames(Total_counts))
 Total_counts <- cbind(Total_counts,res_data_frame[rownames(Total_counts),])
 Total_counts$Anno_location <- Anno[rownames(Total_counts),]$V2
-Total_counts$Anno_protein <- Anno[rownames(Total_counts),]$V4
-Total_counts$Anno_product <- Anno[rownames(Total_counts),]$V5
+Total_counts$Anno_geneid <- Anno[rownames(Total_counts),]$V4
+Total_counts$Anno_protein <- Anno[rownames(Total_counts),]$V5
+Total_counts$Anno_product <- Anno[rownames(Total_counts),]$V6
 write.table(Total_counts,file=paste0("ab_cs_11_vs_ab_c","_DE_total_2vs2.txt"),sep="\t",quote=FALSE)
 write.xlsx(Total_counts,file =paste0("ab_cs_11_vs_ab_c","_DE_total_2vs2.xlsx"),row.names=FALSE)
 
@@ -199,11 +200,13 @@ dev.off()
 library(ggplot2)
 library(ggrepel)
 data <- plotPCA(rld,intgroup="condition",returnData=TRUE)
-percentVar <- round(100 * attr(data,"percentVar"))
+percentVar <- round(100 * attr(data,"percentVar"),digits = 3)
 ##aes尽量在需要用时才指定，ggplot里指定影响面太大
 ggplot(data,aes(PC1,PC2))+
   geom_point(aes(color=condition,shape=condition),size=3)+
-  geom_text_repel(aes(label=name))
+  geom_text_repel(aes(label=name))+labs(x=paste0("PC1(",percentVar[1],"%)"),
+                                        y=paste0("PC2(",percentVar[2],"%)"),
+                                        color="Type",shape="Type")
 ggsave(paste0(output,"_PCA.pdf"),width=9.5,height=7)
 dev.off()
 
@@ -213,6 +216,10 @@ DE_down <- Total_counts[Total_counts$log2FoldChange < -1 &
 
 DE_up <- Total_counts[Total_counts$log2FoldChange > 1 & 
                                       (! is.na(Total_counts$padj)) & Total_counts$padj < 0.05,]
+write.table(DE_up,file=paste0("ab_cs_11_vs_ab_c","_DE_up_2vs2.txt"),sep="\t",quote=FALSE)
+write.xlsx(DE_up,file =paste0("ab_cs_11_vs_ab_c","_DE_up_2vs2.xlsx"),row.names=FALSE)
+write.table(DE_down,file=paste0("ab_cs_11_vs_ab_c","_DE_down_2vs2.txt"),sep="\t",quote=FALSE)
+write.xlsx(DE_down,file =paste0("ab_cs_11_vs_ab_c","_DE_down_2vs2.xlsx"),row.names=FALSE)
 
 ###Part 3
 ##topGO enrichment
@@ -277,7 +284,7 @@ down_go <- list()
 for(i in 1:length(go_type)){
   type=go_type[i]
   godata <- new("topGOdata",ontology=type,allGenes=geneList_down,
-                description=paste("GOdata_28vs21_l",type,sep="\t"),annot=annFUN.gene2GO,
+                description=paste("GOdata_down",type,sep="\t"),annot=annFUN.gene2GO,
                 gene2GO=geneID2GO,nodeSize=1)
   ##renew the genelist
   .geneList_down <- as.factor(as.integer(genes(godata) %in% sigGenes(godata)))
@@ -328,8 +335,8 @@ for(i in 1:3){
   tmp$Annot_comb <- factor(tmp$Annot_comb,levels = rev(tmp$Annot_comb))
   p<- ggplot(tmp,aes(qvalue,Annot_comb))+geom_point(aes(size=Significant,color=qvalue))+
     scale_color_gradient(low="red",high="green",limits=c(0,1))+
-    labs(color="P.adjust",size="Significant Count",x="Classic Fisher Qvalue",
-         y="GO Terms",title=name)+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
+    labs(color="P.adjust",size="Significant Count",x="P.adjust",
+         y="GO Terms")+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
   ggsave(paste0("./GO_enrichment_results/",name,".pdf"),plot=p,width=25,height=15,units = "cm")
   printGraph(up_go[[i]],up_go_results[[i]],
                  firstSigNodes = 10,useInfo = "all",pdfSW=F,
@@ -347,8 +354,8 @@ for(i in 1:3){
   tmp$Annot_comb <- factor(tmp$Annot_comb,levels = rev(tmp$Annot_comb))
   p<- ggplot(tmp,aes(qvalue,Annot_comb))+geom_point(aes(size=Significant,color=qvalue))+
     scale_color_gradient(low="red",high="green",limits=c(0,1))+
-    labs(color="P.adjust",size="Significant Count",x="Classic Fisher Qvalue",
-         y="GO Terms",title=name)+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
+    labs(color="P.adjust",size="Significant Count",x="P.adjust",
+         y="GO Terms")+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
   ggsave(paste0("./GO_enrichment_results/",name,".pdf"),plot=p,width=25,height=15,units = "cm")
   printGraph(down_go[[i]],down_go_results[[i]],
              firstSigNodes = 10,useInfo = "all",pdfSW=F,
@@ -402,7 +409,7 @@ for(n in 1:3){
   
   rbPal <- colorRampPalette(c("red","yellow"))
   V(net)$color <- rbPal(1000)[cut(seq(0,1,0.001),breaks = 1000)][
-    round(vertices$qvalue,digits = 3)*1000+1]
+    round(vertices$qvalue,digits = 3)*1000+1] ##防止 qvalue=0
   
   V(net)$label <- vertices$Term
   V(net)$label.family <- "Times"
@@ -411,16 +418,13 @@ for(n in 1:3){
   E(net)$width <- d$count*0.15
   
   pdf(paste0("./GO_enrichment_results/",output,"_Up_",go_type[n],"_network.pdf"))
-  plot(net,layout=layout_nicely,main=paste0(
-    output,"_Up_",go_type[n],"_network"))
+  plot(net,layout=layout_nicely)
   image.plot(zlim=seq(0,1),legend.only = TRUE,
              col=rbPal(1000)[cut(seq(0,1,by=0.001),breaks=1000)],
              horizontal = TRUE,legend.shrink=0.2,legend.width = 1,
              legend.args=list(text="P.adjust",cex=0.7,line=0.1),
-             axis.args=list(at=c(0,0.5,1),labels=c(0,0.5,1)),
-             smallplot = c(0.8,0.9,0.85,0.9))
-
-
+             axis.args=list(at=c(0,0.5,1),labels=c(0,0.5,1),cex.axis=0.7,tck=-0.15,lwd=0,line=-0.95),
+             smallplot = c(0.85,0.95,0.9,0.95))
   dev.off()
 }
 
@@ -461,7 +465,7 @@ for(n in 1:3){
   
   rbPal <- colorRampPalette(c("red","yellow"))
   V(net)$color <- rbPal(1000)[cut(seq(0,1,by=0.001),breaks = 1000)][
-    round(vertices$qvalue,digits=3)*1000+1] ##防止 q=0
+    round(vertices$qvalue,digits=3)*1000+1] ##防止 qvalue=0
   
   V(net)$label <- vertices$Term
   V(net)$label.family <- "Times"
@@ -470,14 +474,13 @@ for(n in 1:3){
   E(net)$width <- d$count*0.15
   
   pdf(paste0("./GO_enrichment_results/",output,"_Down_",go_type[n],"_network.pdf"))
-  plot(net,layout=layout_nicely,main=paste0(
-    output,"_Down_",go_type[n],"_network"))
+  plot(net,layout=layout_nicely)
   image.plot(zlim=seq(0,1),legend.only = TRUE,
              col=rbPal(1000)[cut(seq(0,1,by=0.001),breaks=1000)],
              horizontal = TRUE,legend.shrink=0.2,legend.width = 1,
              legend.args=list(text="P.adjust",cex=0.7,line=0.1),
-             axis.args=list(at=c(0,0.5,1),labels=c(0,0.5,1)),
-             smallplot = c(0.8,0.9,0.85,0.9))
+             axis.args=list(at=c(0,0.5,1),labels=c(0,0.5,1),cex.axis=0.7,tck=-0.15,lwd=0,line=-0.95),
+             smallplot = c(0.85,0.95,0.9,0.95))
   dev.off()
 }
 
@@ -523,7 +526,7 @@ for(m in 1:3){
     scale_x_continuous(breaks=seq(1,length(genes_up)),labels=genes_up,expand = c(0,0))+
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="P.adjust")
+    labs(y="GO Terms",x="DE Genes",fill="P.adjust")
   ggsave(paste0("./GO_enrichment_results/",output,"_Up_",go_type[m],"_by_Name_heapmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
@@ -572,7 +575,7 @@ for(m in 1:3){
     scale_x_continuous(breaks=seq(1,length(genes_up)),labels=genes_up,expand = c(0,0))+
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="P.adjust")
+    labs(y="GO Terms",x="DE Genes",fill="P.adjust")
   ggsave(paste0("./GO_enrichment_results/",output,"_Up_",go_type[m],"_by_Fold_heapmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
@@ -619,7 +622,7 @@ for(m in 1:3){
     scale_x_continuous(breaks=seq(1,length(genes_down)),labels=genes_down,expand = c(0,0))+
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="P.adjust")
+    labs(y="GO Terms",x="DE Genes",fill="P.adjust")
   ggsave(paste0("./GO_enrichment_results/",output,"_Down_",go_type[m],"_by_Name_heapmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
@@ -666,11 +669,10 @@ for(m in 1:3){
     scale_x_continuous(breaks=seq(1,length(genes_down)),labels=genes_down,expand = c(0,0))+
     theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
           plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(go_type[m],"_Heatmap"),y="GO Terms",x="DE Genes",fill="P.adjust")
+    labs(y="GO Terms",x="DE Genes",fill="P.adjust")
   ggsave(paste0("./GO_enrichment_results/",output,"_Down_",go_type[m],"_by_Fold_heapmap.pdf"),
          plot=p,width = 28,height=18,units = "cm")
 }
-
 
 ##part 4 
 ##clusterProfiler kegg analysis
@@ -679,150 +681,32 @@ library(AnnotationForge)
 library(AnnotationHub)
 library(clusterProfiler)
 library(enrichplot)
-##kegg_database <- search_kegg_organism("Klebsiella pneumoniae",by="scientific_name",
-##                                      ignore.case = T)
-##kpm
+
+##abau for Acinetobacter baumannii AB0303
 ##KEGG Module是人工审核定义的功能单元，在一些情况下，KEGG Module具有明确直接的解释
-kegg_28vs21_up <- enrichMKEGG(gene=DE_28vs21_up$GeneNames,organism = "kpm",
-                            pvalueCutoff = 1,minGSSize= 1,qvalueCutoff = 1)
-kegg_28vs21_down <- enrichMKEGG(gene=DE_28vs21_down$GeneNames,organism = "kpm",
-                             pvalueCutoff = 1,minGSSize = 1,qvalueCutoff = 1)
+##https://guangchuangyu.github.io/2016/04/kegg-module-enrichment-analysis/
+##https://www.genome.jp/kegg/catalog/org_list.html
+dir.create("./KEGG_enrichment_results")
+locus_exchange <- read.delim("ab030_locustag_exchange.txt",header=F,sep="\t",quote="",row.names = 1)
+DE_up$old_Gene_ID <- locus_exchange[DE_up$Gene_ID,]
+DE_down$old_Gene_ID <- locus_exchange[DE_down$Gene_ID,]
 
-##dotplot pic / 
-kegg_28vs21_up <- as.data.frame(kegg_28vs21_up)
-kegg_28vs21_down <- as.data.frame(kegg_28vs21_down)
-kegg_28vs21_up$Terms <- paste0(kegg_28vs21_up$ID,":",kegg_28vs21_up$Description)
-kegg_28vs21_down$Terms <- paste0(kegg_28vs21_down$ID,":",kegg_28vs21_down$Description)
-kegg_28vs21_results <- list(kegg_28vs21_up,kegg_28vs21_down)
-name_kegg <- c("KEGG_28vs21_Up","KEGG_28vs21_Down")
+kegg_DE_up <- enrichMKEGG(gene=DE_up$old_Gene_ID,organism = "abau",keyType ="kegg",minGSSize = 1,
+                          pAdjustMethod="BH",pvalueCutoff =2,qvalueCutoff = 2)
+kegg_DE_down <- enrichMKEGG(gene=DE_down$old_Gene_ID,organism = "abau",keyType="kegg",minGSSize= 1,
+                            pAdjustMethod="BH",pvalueCutoff = 2,qvalueCutoff = 2)
 
-for(i in 1:2){
-  tmp <- data.frame()
-  name <- c()
-  if(nrow(kegg_28vs21_results[[i]])>30){
-    tmp <- kegg_28vs21_results[[i]][1:30,]
-    }else{
-      tmp <- kegg_28vs21_results[[i]]
-    }
-  name <- name_kegg[i]
-  tmp$p.adjust <- as.numeric(tmp$p.adjust)
-  tmp$Count <- as.numeric(tmp$Count)
-  tmp$Terms <- factor(tmp$Terms,levels = rev(tmp$Terms))
-  p<- ggplot(tmp,aes(p.adjust,Terms))+geom_point(aes(size=Count,color=p.adjust))+
-    scale_color_gradient(low="red",high="green")+scale_x_reverse()+
-    labs(color="p.adjust",size="Significant Count",x="p.adjust",
-         y="KO Terms",title=paste0(name,"_Enrichment"))+theme(plot.title=element_text(hjust = 0.5))+theme_bw()
-  ggsave(paste0("./GO_enrichment_results/",name,"_Enrichment",".pdf"),plot=p,width=25,height=15,units = "cm")
-} 
+kegg_DE_up_dataframe <- data.frame(kegg_DE_up)
+kegg_DE_down_dataframe <- data.frame(kegg_DE_down)
 
-##heatmap for kegg enrichment by names
-for(m in 1:2){
-  tmp <- data.frame()
-  genes <- vector()
-  Data <- data.frame()
-  if(nrow(kegg_28vs21_results[[m]])>30){
-    tmp <- kegg_28vs21_results[[m]][1:30,]
-  }else{
-    tmp <- kegg_28vs21_results[[m]]
-  }
-  
-  for(i in 1:nrow(tmp)){
-    genes <- append(genes, unlist(strsplit(tmp$geneID,"/")))
-  }
-  genes <- sort(unique(genes))
-  
-  Data <- data.frame(matrix(1:length(genes),nrow=1))
-  for(j in 1:nrow(tmp)){
-    Data[j,] <- as.integer(genes %in% unlist(strsplit(tmp[j,]$geneID,"/")))
-  }
-  colnames(Data) <- factor(genes,levels=genes)
-  rownames(Data) <- factor(tmp$ID,levels=rev(tmp$ID))
-  x1 <- vector()
-  x2 <- vector()
-  y1 <- vector()
-  y2 <- vector()
-  q <- vector()
-  p <- NULL
-  for(k in 1:nrow(Data)){
-    for(n in 1:ncol(Data)){
-      x1 <- append(x1,Data[k,n]*(n-0.45))
-      x2 <- append(x2,Data[k,n]*(n+0.45))
-      y1 <- append(y1, Data[k,n]*(k-0.45))
-      y2 <- append(y2, Data[k,n]*(k+0.45))
-    }
-    q <- append(q,rep(tmp[k,]$p.adjust,length(genes)))
-  }
-  d <- data.frame(x1=x1,x2=x2,y1=y1,y2=y2,q=q)
-  
-  p <- ggplot() + theme_bw()+ geom_rect(
-    data=d,mapping=aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,fill=q))+
-    scale_fill_gradient(low="red",high="blue")+
-    scale_y_continuous(breaks=seq(1,length(tmp$ID)),labels=tmp$ID,expand = c(0,0))+
-    scale_x_continuous(breaks=seq(1,length(genes)),labels=genes,expand = c(0,0))+
-    theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
-          plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(name_kegg[m],"_Heatmap"),y="KO Terms",x="DE Genes",fill="p.adjust")
-  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_by_Name_heapmap.pdf"),
-         plot=p,width = 28,height=18,units = "cm") 
-}
-
-##heatmap for kegg enrichment sorted by folds
-for(m in 1:2){
-  tmp <- data.frame()
-  genes <- vector()
-  Data <- data.frame()
-  if(nrow(kegg_28vs21_results[[m]])>30){
-    tmp <- kegg_28vs21_results[[m]][1:30,]
-  }else{
-    tmp <- kegg_28vs21_results[[m]]
-  }
-  
-  for(i in 1:nrow(tmp)){
-    genes <- append(genes, unlist(strsplit(tmp$geneID,"/")))
-  }
-  
-  genes <- sort(unique(genes))
-  if(m==1){
-    genes <- genes[order(DE_28vs21_up[genes,"log2.Fold_change."],
-                         decreasing = TRUE)]
-  }else{
-    genes <- genes[order(DE_28vs21_up[genes,"log2.Fold_change."])]
-  }
-  
-  Data <- data.frame(matrix(1:length(genes),nrow=1))
-  for(j in 1:nrow(tmp)){
-    Data[j,] <- as.integer(genes %in% unlist(strsplit(tmp[j,]$geneID,"/")))
-  }
-  colnames(Data) <- factor(genes,levels=genes)
-  rownames(Data) <- factor(tmp$ID,levels=rev(tmp$ID))
-  x1 <- vector()
-  x2 <- vector()
-  y1 <- vector()
-  y2 <- vector()
-  q <- vector()
-  p <- NULL
-  for(k in 1:nrow(Data)){
-    for(n in 1:ncol(Data)){
-      x1 <- append(x1,Data[k,n]*(n-0.45))
-      x2 <- append(x2,Data[k,n]*(n+0.45))
-      y1 <- append(y1, Data[k,n]*(k-0.45))
-      y2 <- append(y2, Data[k,n]*(k+0.45))
-    }
-    q <- append(q,rep(tmp[k,]$p.adjust,length(genes)))
-  }
-  d <- data.frame(x1=x1,x2=x2,y1=y1,y2=y2,q=q)
-  
-  p <- ggplot() + theme_bw()+ geom_rect(
-    data=d,mapping=aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,fill=q))+
-    scale_fill_gradient(low="red",high="blue")+
-    scale_y_continuous(breaks=seq(1,length(tmp$ID)),labels=tmp$ID,expand = c(0,0))+
-    scale_x_continuous(breaks=seq(1,length(genes)),labels=genes,expand = c(0,0))+
-    theme(axis.text.x=element_text(angle=60,vjust=1,hjust=1,size=6.5),
-          plot.title=element_text(hjust = 0.5))+
-    labs(title=paste0(name_kegg[m],"_Heatmap"),y="KO Terms",x="DE Genes",fill="p.adjust")
-  ggsave(paste0("./GO_enrichment_results/",name_kegg[m],"_by_Fold_heapmap.pdf"),
-         plot=p,width = 28,height=18,units = "cm") 
-}
+write.table(kegg_DE_up_dataframe,file=paste0("./KEGG_enrichment_results/",output,"_KEGG_up_2vs2.txt"),
+            sep="\t",quote=FALSE)
+write.xlsx(kegg_DE_up_dataframe,file =paste0("./KEGG_enrichment_results/",output,"_KEGG_up_2vs2.xlsx"),
+           row.names=FALSE)
+write.table(kegg_DE_down_dataframe,file=paste0("./KEGG_enrichment_results/",output,"_KEGG_down_2vs2.txt"),
+            sep="\t",quote=FALSE)
+write.xlsx(kegg_DE_down_dataframe,file =paste0("./KEGG_enrichment_results/",output,"_KEGG_down_2vs2.xlsx"),
+           row.names=FALSE)
 
 ##browseKEGG
 ##browseKEGG(kk, 'hsa04110')
