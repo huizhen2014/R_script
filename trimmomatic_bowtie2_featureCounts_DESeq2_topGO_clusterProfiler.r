@@ -22,14 +22,14 @@
 ####featureCounts ignoreDup=F,primaryOnly=TRUE
 ##featureCounts
 library(Rsubread)
-samples <- c("ab_3_cs_11","ab_4_cs_11","ab_1",
-             "ab_2")
+samples <- c("ab_1_c507_0440","ab_2_c507_0440","ab_3_c507_0440",
+             "ab_1", "ab_2")
 gtf_file <- "ab030_gff.gtf"
 featuretype <- "transcript"
 attrtype <- "locus_tag"
 anno_file <- "ab030_annotation_extraction.txt"
 go_file <- "ab030_Sangon_go.txt"
-output <- "ab_cs_11_vs_ab_c"
+output <- "ab_c507_0440_vs_ab_c"
 
 Results <- list()
 for(sample in samples){
@@ -65,7 +65,7 @@ rownames(countData) <- fc_counts[[1]]$Gene_ID
 #countData <- countData[idx,]
 colData <- matrix(666,nrow=length(fc_counts))
 rownames(colData) <- colnames(countData)
-colData[,1] <- c(rep("ab_cs_11",2),rep("ab_c",2)) ##根据实际修改
+colData[,1] <- c(rep("ab_c507_0440",3),rep("ab_c",2)) ##根据实际修改
 colnames(colData) <- "condition"
 
 ##DESeq2差异分析
@@ -74,7 +74,7 @@ dds <- DESeqDataSetFromMatrix(countData = countData,colData = colData,
                               design = ~ condition)
 
 ##设置factor levels
-dds$condition <- factor(dds$condition,levels=c("ab_cs_11","ab_c"))
+dds$condition <- factor(dds$condition,levels=c("ab_c507_0440","ab_c"))
 ##dds$condition <- relevel(dds$condition,ref="MDR")
 ##dds$condition <- droplevels(dds$level)
 
@@ -88,7 +88,7 @@ dds <- DESeq(dds)
 ##默认为last level vs. ref level
 ##resultsNames(dds) 查看coefficient名称可知
 ##这里通过contrast指定 MDR/AS，指定adjusted p-value cutoff (FDR)阈值为0.05
-res <- results(dds,contrast=c("condition","ab_cs_11","ab_c"))
+res <- results(dds,contrast=c("condition","ab_c507_0440","ab_c"))
 #res <- results(dds,contrast = c("condition","28s","21s"),alpha=0.05)
 ##removeResults函数返回至DESeqDataSet对象
 
@@ -116,15 +116,15 @@ Total_counts$Anno_location <- Anno[rownames(Total_counts),]$V2
 Total_counts$Anno_geneid <- Anno[rownames(Total_counts),]$V4
 Total_counts$Anno_protein <- Anno[rownames(Total_counts),]$V5
 Total_counts$Anno_product <- Anno[rownames(Total_counts),]$V6
-write.table(Total_counts,file=paste0("ab_cs_11_vs_ab_c","_DE_total_2vs2.txt"),sep="\t",quote=FALSE)
-write.xlsx(Total_counts,file =paste0("ab_cs_11_vs_ab_c","_DE_total_2vs2.xlsx"),row.names=FALSE)
+write.table(Total_counts,file=paste0("ab_c507_0440_vs_ab_c","_DE_total_3vs2.txt"),sep="\t",quote=FALSE)
+write.xlsx(Total_counts,file =paste0("ab_c507_0440_vs_ab_c","_DE_total_3vs2.xlsx"),row.names=FALSE)
 
 ##res结果根据padj排序
 resOrdered <- res[order(res$padj),]
 ##summary(resOrdered)
 
 ##lfcshrink, 仅为绘图和排序使用，最终差异结果和results无异
-res_shrunken_normal <- lfcShrink(dds,contrast = c("condition","ab_hq_1","ab_c"),
+res_shrunken_normal <- lfcShrink(dds,contrast = c("condition","ab_c507_0440","ab_c"),
 res=res,type="normal",alpha=0.05)
 
 ##绘制MA-plot
@@ -211,15 +211,16 @@ ggsave(paste0(output,"_PCA.pdf"),width=9.5,height=7)
 dev.off()
 
 ##挑选出差异基因做GO/KEGG分析
+DE_up <- Total_counts[Total_counts$log2FoldChange > 1 & 
+                        (! is.na(Total_counts$padj)) & Total_counts$padj < 0.05,]
+
 DE_down <- Total_counts[Total_counts$log2FoldChange < -1 & 
                                         (! is.na(Total_counts$padj)) & Total_counts$padj < 0.05,]
 
-DE_up <- Total_counts[Total_counts$log2FoldChange > 1 & 
-                                      (! is.na(Total_counts$padj)) & Total_counts$padj < 0.05,]
-write.table(DE_up,file=paste0("ab_cs_11_vs_ab_c","_DE_up_2vs2.txt"),sep="\t",quote=FALSE)
-write.xlsx(DE_up,file =paste0("ab_cs_11_vs_ab_c","_DE_up_2vs2.xlsx"),row.names=FALSE)
-write.table(DE_down,file=paste0("ab_cs_11_vs_ab_c","_DE_down_2vs2.txt"),sep="\t",quote=FALSE)
-write.xlsx(DE_down,file =paste0("ab_cs_11_vs_ab_c","_DE_down_2vs2.xlsx"),row.names=FALSE)
+write.table(DE_up,file=paste0("ab_c507_0440_vs_ab_c","_DE_up_3vs2.txt"),sep="\t",quote=FALSE)
+write.xlsx(DE_up,file =paste0("ab_c507_0440_vs_ab_c","_DE_up_3vs2.xlsx"),row.names=FALSE)
+write.table(DE_down,file=paste0("ab_c507_0440_vs_ab_c","_DE_down_3vs2.txt"),sep="\t",quote=FALSE)
+write.xlsx(DE_down,file =paste0("ab_c507_0440_vs_ab_c","_DE_down_3vs2.xlsx"),row.names=FALSE)
 
 ###Part 3
 ##topGO enrichment
@@ -541,7 +542,7 @@ for(m in 1:3){
     genes_up <- append(genes_up, unlist(strsplit(tmp[i,]$Sig_Genes,",")))
   }
   genes_up <- sort(unique(genes_up))
-  genes_up <- genes_up[order(Ab_cs_11_vs_Ab_c_up[genes_up,"log2FoldChange"],
+  genes_up <- genes_up[order(DE_up[genes_up,"log2FoldChange"],
                              decreasing = TRUE)]
   
   Data <- data.frame(matrix(1:length(genes_up),nrow=1))
@@ -637,7 +638,7 @@ for(m in 1:3){
     genes_down <- append(genes_down, unlist(strsplit(tmp[i,]$Sig_Genes,",")))
   }
   genes_down <- sort(unique(genes_down))
-  genes_down <- genes_down[order(Ab_cs_11_vs_Ab_c_down[genes_down,"log2FoldChange"])]
+  genes_down <- genes_down[order(DE_down[genes_down,"log2FoldChange"])]
   
   Data <- data.frame(matrix(1:length(genes_down),nrow=1))
   for(j in 1:nrow(tmp)){
@@ -699,14 +700,19 @@ kegg_DE_down <- enrichMKEGG(gene=DE_down$old_Gene_ID,organism = "abau",keyType="
 kegg_DE_up_dataframe <- data.frame(kegg_DE_up)
 kegg_DE_down_dataframe <- data.frame(kegg_DE_down)
 
-write.table(kegg_DE_up_dataframe,file=paste0("./KEGG_enrichment_results/",output,"_KEGG_up_2vs2.txt"),
+write.table(kegg_DE_up_dataframe,file=paste0("./KEGG_enrichment_results/",output,"_KEGG_up_3vs2.txt"),
             sep="\t",quote=FALSE)
-write.xlsx(kegg_DE_up_dataframe,file =paste0("./KEGG_enrichment_results/",output,"_KEGG_up_2vs2.xlsx"),
+write.xlsx(kegg_DE_up_dataframe,file =paste0("./KEGG_enrichment_results/",output,"_KEGG_up_3vs2.xlsx"),
            row.names=FALSE)
-write.table(kegg_DE_down_dataframe,file=paste0("./KEGG_enrichment_results/",output,"_KEGG_down_2vs2.txt"),
+write.table(kegg_DE_down_dataframe,file=paste0("./KEGG_enrichment_results/",output,"_KEGG_down_3vs2.txt"),
             sep="\t",quote=FALSE)
-write.xlsx(kegg_DE_down_dataframe,file =paste0("./KEGG_enrichment_results/",output,"_KEGG_down_2vs2.xlsx"),
+write.xlsx(kegg_DE_down_dataframe,file =paste0("./KEGG_enrichment_results/",output,"_KEGG_down_3vs2.xlsx"),
            row.names=FALSE)
+
+#kegg_DE_up_simple <- enrichKEGG(gene=DE_up$old_Gene_ID,organism = "abau",keyType ="kegg",minGSSize = 1,
+#                          pAdjustMethod="BH",pvalueCutoff =2,qvalueCutoff = 2)
+#kegg_DE_down_simple <- enrichKEGG(gene=DE_down$old_Gene_ID,organism = "abau",keyType="kegg",minGSSize= 1,
+#                            pAdjustMethod="BH",pvalueCutoff = 2,qvalueCutoff = 2)
 
 ##browseKEGG
 ##browseKEGG(kk, 'hsa04110')

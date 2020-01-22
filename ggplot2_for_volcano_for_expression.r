@@ -4,7 +4,7 @@ library(ggrepel)
 library(xlsx)
 
 ##Get the Expression table
-ab_Exp <- read.xlsx("ab_cs_11_vs_ab_c_DE_total_2vs2.xlsx",1,header=T,
+ab_Exp <- read.xlsx("ab_c507_0440_vs_ab_c_DE_total_3vs2.xlsx",1,header=T,
                     colClasses = "character")
 ##Modify MS_Exp by adding Product iterms
 #ab_Exp$Product <- substr(MS_Exp$Protein.description,1,
@@ -44,5 +44,5 @@ ggplot(ab_Exp,aes(log2FoldChange,-log(padj,10)))+
 
 
 ##Save the pic
-ggsave("ab_cs_11_vs_ab_c_vocalno.pdf",width=7,height = 7.5)
+ggsave("ab_c507_0440_vs_ab_c_vocalno.pdf",width=7,height = 7.5)
 
